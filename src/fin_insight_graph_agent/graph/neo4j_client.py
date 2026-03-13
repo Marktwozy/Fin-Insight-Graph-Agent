@@ -82,8 +82,17 @@ def build_neo4j_client(
     username: str | None = None,
     password: str | None = None,
 ) -> Neo4jGraphClient:
-    graph_uri = uri or os.getenv("FIGA_NEO4J_URI", "bolt://127.0.0.1:7687")
-    graph_user = username or os.getenv("FIGA_NEO4J_USERNAME", "neo4j")
-    graph_password = password or os.getenv("FIGA_NEO4J_PASSWORD", "password123")
+    graph_uri: str = uri if uri is not None else os.getenv(
+        "FIGA_NEO4J_URI",
+        "bolt://127.0.0.1:7687",
+    )
+    graph_user: str = username if username is not None else os.getenv(
+        "FIGA_NEO4J_USERNAME",
+        "neo4j",
+    )
+    graph_password: str = password if password is not None else os.getenv(
+        "FIGA_NEO4J_PASSWORD",
+        "password123",
+    )
     driver = GraphDatabase.driver(graph_uri, auth=(graph_user, graph_password))
     return Neo4jGraphClient(driver=driver)

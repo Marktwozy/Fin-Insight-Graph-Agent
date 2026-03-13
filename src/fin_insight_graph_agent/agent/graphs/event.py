@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any
 
 from langgraph.graph import END, StateGraph
+from typing_extensions import TypedDict
 
 from fin_insight_graph_agent.agent.nodes.event_normalizer import normalize_event
 from fin_insight_graph_agent.agent.nodes.impact_synthesizer import synthesize_impact
@@ -32,11 +33,11 @@ def _extract_market_refs(text: str) -> list[str]:
     return upper_words
 
 
-def build_event_graph(dependencies: Any):
+def build_event_graph(dependencies: Any) -> Any:
     workflow = StateGraph(EventGraphState)
     checker = ReflectionChecker()
 
-    def retrieve_evidence(state: EventGraphState) -> dict:
+    def retrieve_evidence(state: EventGraphState) -> dict[str, Any]:
         event_text = state.get("normalized_event") or state.get("event_input", "")
         batch_id = state.get("batch_id", "")
         text_results = dependencies.text_retriever.search(event_text, batch_id=batch_id)
@@ -51,7 +52,7 @@ def build_event_graph(dependencies: Any):
         ranked = dependencies.reranker.rank(event_text, merged)
         return {"evidence": ranked}
 
-    def reflect(state: EventGraphState) -> dict:
+    def reflect(state: EventGraphState) -> dict[str, Any]:
         evidence = state.get("evidence", [])
         report = checker.check(
             draft_text=state.get("draft_response", ""),
@@ -59,11 +60,20 @@ def build_event_graph(dependencies: Any):
         )
         return {"reflection_report": report}
 
-    workflow.add_node("event_normalizer", normalize_event)
-    workflow.add_node("retrieve_evidence", retrieve_evidence)
-    workflow.add_node("impact_synthesizer", synthesize_impact)
-    workflow.add_node("reflection_checker", reflect)
-    workflow.add_node("revision_gate", apply_revision)
+    workflow.add_node(
+        "event_normalizer",
+        normalize_event,
+    )  # type: ignore[call-overload,type-var]
+    workflow.add_node("retrieve_evidence", retrieve_evidence)  # type: ignore[arg-type,type-var]
+    workflow.add_node(
+        "impact_synthesizer",
+        synthesize_impact,
+    )  # type: ignore[call-overload,type-var]
+    workflow.add_node("reflection_checker", reflect)  # type: ignore[arg-type,type-var]
+    workflow.add_node(
+        "revision_gate",
+        apply_revision,
+    )  # type: ignore[call-overload,type-var]
 
     workflow.set_entry_point("event_normalizer")
     workflow.add_edge("event_normalizer", "retrieve_evidence")

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any
 
 from langgraph.graph import END, StateGraph
+from typing_extensions import TypedDict
 
 from fin_insight_graph_agent.agent.nodes.draft_generator import generate_draft
 from fin_insight_graph_agent.agent.nodes.query_rewriter import rewrite_query
@@ -31,10 +32,10 @@ def _extract_market_refs(question: str) -> list[str]:
     return upper_words
 
 
-def build_research_graph(dependencies: Any):
+def build_research_graph(dependencies: Any) -> Any:
     workflow = StateGraph(ResearchGraphState)
 
-    def retrieve_evidence(state: ResearchGraphState) -> dict:
+    def retrieve_evidence(state: ResearchGraphState) -> dict[str, Any]:
         question = state.get("rewritten_question") or state.get("question", "")
         batch_id = state.get("batch_id", "")
         text_results = dependencies.text_retriever.search(question, batch_id=batch_id)
@@ -49,11 +50,20 @@ def build_research_graph(dependencies: Any):
         ranked = dependencies.reranker.rank(question, merged)
         return {"evidence": ranked}
 
-    workflow.add_node("router", route_request)
-    workflow.add_node("query_rewriter", rewrite_query)
-    workflow.add_node("question_decomposer", decompose_question)
-    workflow.add_node("retrieve_evidence", retrieve_evidence)
-    workflow.add_node("draft_generator", generate_draft)
+    workflow.add_node("router", route_request)  # type: ignore[call-overload,type-var]
+    workflow.add_node(
+        "query_rewriter",
+        rewrite_query,
+    )  # type: ignore[call-overload,type-var]
+    workflow.add_node(
+        "question_decomposer",
+        decompose_question,
+    )  # type: ignore[call-overload,type-var]
+    workflow.add_node("retrieve_evidence", retrieve_evidence)  # type: ignore[arg-type,type-var]
+    workflow.add_node(
+        "draft_generator",
+        generate_draft,
+    )  # type: ignore[call-overload,type-var]
 
     workflow.set_entry_point("router")
     workflow.add_edge("router", "query_rewriter")

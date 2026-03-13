@@ -69,6 +69,38 @@ class FakeDailyBatchOrchestrator:
         )
 
 
+class FakePipelineSmokeRunner:
+    def __init__(self):
+        self.calls = []
+
+    def run(self, *, targets, batch_id, research_question='', event_input=''):
+        self.calls.append((targets, batch_id, research_question, event_input))
+        return type(
+            'PipelineSmokeSummary',
+            (),
+            {
+                'batch_id': batch_id,
+                'batch_status': 'published',
+                'research': type(
+                    'ResearchSmoke',
+                    (),
+                    {
+                        'status': 'passed',
+                        'citation_count': 1,
+                    },
+                )(),
+                'event': type(
+                    'EventSmoke',
+                    (),
+                    {
+                        'status': 'passed',
+                        'citation_count': 1,
+                    },
+                )(),
+            },
+        )()
+
+
 def test_worker_publish_batch_returns_blocked_message_when_quality_gate_fails(monkeypatch):
     publisher = FakePublisher(FakeValidationResult(passed=False))
     monkeypatch.setattr(
@@ -187,7 +219,59 @@ def test_worker_daily_batch_uses_orchestrator_builder_and_batch_date(monkeypatch
     assert 'daily batch validated but not published' in message
 
 
-def _args(job, batch_id, targets_file='', batch_date='', skip_publish=False):
+def test_worker_pipeline_smoke_runs_batch_and_query_smoke(monkeypatch):
+    temp_root = Path('D:/myAgent/.worktrees/fin-insight-v1/tests/.tmp/worker-pipeline-smoke')
+    if temp_root.exists():
+        shutil.rmtree(temp_root)
+    temp_root.mkdir(parents=True)
+    targets_file = temp_root / 'targets.json'
+    targets_file.write_text(
+        json.dumps([
+            {'ticker': 'nvda', 'cik': '1045810'},
+            {'ticker': 'amd', 'cik': '2488'},
+        ]),
+        encoding='utf-8',
+    )
+
+    runner = FakePipelineSmokeRunner()
+    monkeypatch.setattr(worker_main, 'build_pipeline_smoke_runner', lambda: runner)
+    monkeypatch.setattr(
+        worker_main,
+        'build_parser',
+        lambda: _args(
+            'pipeline-smoke',
+            '',
+            str(targets_file),
+            batch_date='2026-03-13',
+            research_question='What supply risks does NVIDIA face?',
+            event_input='A packaging bottleneck hits TSMC CoWoS capacity',
+        ),
+    )
+
+    try:
+        message = worker_main.main()
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+    targets, batch_id, research_question, event_input = runner.calls[0]
+    assert [target.ticker for target in targets] == ['NVDA', 'AMD']
+    assert batch_id == 'batch-20260313'
+    assert research_question == 'What supply risks does NVIDIA face?'
+    assert event_input == 'A packaging bottleneck hits TSMC CoWoS capacity'
+    assert 'pipeline smoke completed' in message
+    assert 'research=passed' in message
+    assert 'event=passed' in message
+
+
+def _args(
+    job,
+    batch_id,
+    targets_file='',
+    batch_date='',
+    skip_publish=False,
+    research_question='',
+    event_input='',
+):
     class Parser:
         @staticmethod
         def parse_args():
@@ -202,6 +286,8 @@ def _args(job, batch_id, targets_file='', batch_date='', skip_publish=False):
             args.cik = '1045810'
             args.targets_file = targets_file
             args.skip_publish = skip_publish
+            args.research_question = research_question
+            args.event_input = event_input
             return args
 
     return Parser()

@@ -17,6 +17,7 @@ Publish one consistent daily batch covering documents, market data, graph projec
 - Multi-company source sync: `uv run python -m apps.worker.main --job source-sync-batch --targets-file examples/source_sync_targets.example.json --batch-id batch-20260313`
 - Daily orchestrated batch: `uv run python -m apps.worker.main --job daily-batch --targets-file examples/source_sync_targets.example.json`
 - Daily orchestrated batch without publish: `uv run python -m apps.worker.main --job daily-batch --targets-file examples/source_sync_targets.example.json --skip-publish`
+- Pipeline smoke: `uv run python -m apps.worker.main --job pipeline-smoke --targets-file examples/source_sync_targets.example.json --batch-id batch-20260313`
 - Batch publish: `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`
 - Standalone graph gate: `uv run python -m apps.evaluator.main --suite graph_retrieval_smoke --dataset-root tests/fixtures/evaluation --enforce-thresholds`
 
@@ -26,6 +27,8 @@ Publish one consistent daily batch covering documents, market data, graph projec
 - You can override the date with `--batch-date YYYY-MM-DD` for replay or backfill.
 - Recommended scheduler target on Windows:
   `uv run python -m apps.worker.main --job daily-batch --targets-file examples/source_sync_targets.example.json`
+- Recommended operator smoke check after a fresh batch:
+  `uv run python -m apps.worker.main --job pipeline-smoke --targets-file examples/source_sync_targets.example.json --batch-id batch-YYYYMMDD`
 
 ## Reliability notes
 - Source sync is idempotent for the same `batch_id`: rerunning the same company or daily batch rewrites the same canonical documents and chunk IDs instead of duplicating rows.

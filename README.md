@@ -35,11 +35,12 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 6. Run an official source sync with `uv run python -m apps.worker.main --job source-sync --ticker NVDA --cik 1045810 --batch-id batch-20260313`.
 7. Run a multi-company source sync with `uv run python -m apps.worker.main --job source-sync-batch --targets-file examples/source_sync_targets.example.json --batch-id batch-20260313`.
 8. Run the daily orchestrated job with `uv run python -m apps.worker.main --job daily-batch --targets-file examples/source_sync_targets.example.json`.
-9. Promote a batch manually with `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`.
+9. Run the full in-process pipeline smoke with `uv run python -m apps.worker.main --job pipeline-smoke --targets-file examples/source_sync_targets.example.json --batch-id batch-20260313`.
+10. Promote a batch manually with `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`.
 
 ## Query a research sample locally
 1. Prepare `.env.local` with your embedding, reranker, and LLM provider settings.
-2. Sync a batch with `source-sync`, `source-sync-batch`, or `daily-batch`.
+2. Sync a batch with `source-sync`, `source-sync-batch`, `daily-batch`, or `pipeline-smoke`.
 3. Start the API with `uv run uvicorn apps.api.main:create_app --factory --reload`.
 4. Call the research route from PowerShell:
 

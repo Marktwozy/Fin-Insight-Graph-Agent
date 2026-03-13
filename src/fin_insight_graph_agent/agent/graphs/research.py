@@ -25,7 +25,7 @@ class ResearchGraphState(TypedDict, total=False):
 
 def _extract_market_refs(question: str) -> list[str]:
     upper_words = [
-        word.strip("?,.")
+        word.strip('?,.')
         for word in question.split()
         if word.isupper() and 1 < len(word) <= 5
     ]
@@ -36,8 +36,8 @@ def build_research_graph(dependencies: Any) -> Any:
     workflow = StateGraph(ResearchGraphState)
 
     def retrieve_evidence(state: ResearchGraphState) -> dict[str, Any]:
-        question = state.get("rewritten_question") or state.get("question", "")
-        batch_id = state.get("batch_id", "")
+        question = state.get('rewritten_question') or state.get('question', '')
+        batch_id = state.get('batch_id', '')
         text_results = dependencies.text_retriever.search(question, batch_id=batch_id)
         graph_results = dependencies.graph_retriever.expand_entities([], batch_id=batch_id)
         market_results = dependencies.market_retriever.search(
@@ -48,28 +48,31 @@ def build_research_graph(dependencies: Any) -> Any:
             [text_results, graph_results, market_results]
         )
         ranked = dependencies.reranker.rank(question, merged)
-        return {"evidence": ranked}
+        return {'evidence': ranked}
 
-    workflow.add_node("router", route_request)  # type: ignore[call-overload,type-var]
+    def draft_response(state: ResearchGraphState) -> dict[str, Any]:
+        return generate_draft(
+            state,
+            response_generator=getattr(dependencies, 'response_generator', None),
+        )
+
+    workflow.add_node('router', route_request)  # type: ignore[call-overload,type-var]
     workflow.add_node(
-        "query_rewriter",
+        'query_rewriter',
         rewrite_query,
     )  # type: ignore[call-overload,type-var]
     workflow.add_node(
-        "question_decomposer",
+        'question_decomposer',
         decompose_question,
     )  # type: ignore[call-overload,type-var]
-    workflow.add_node("retrieve_evidence", retrieve_evidence)  # type: ignore[arg-type,type-var]
-    workflow.add_node(
-        "draft_generator",
-        generate_draft,
-    )  # type: ignore[call-overload,type-var]
+    workflow.add_node('retrieve_evidence', retrieve_evidence)  # type: ignore[arg-type,type-var]
+    workflow.add_node('draft_generator', draft_response)  # type: ignore[arg-type,type-var]
 
-    workflow.set_entry_point("router")
-    workflow.add_edge("router", "query_rewriter")
-    workflow.add_edge("query_rewriter", "question_decomposer")
-    workflow.add_edge("question_decomposer", "retrieve_evidence")
-    workflow.add_edge("retrieve_evidence", "draft_generator")
-    workflow.add_edge("draft_generator", END)
+    workflow.set_entry_point('router')
+    workflow.add_edge('router', 'query_rewriter')
+    workflow.add_edge('query_rewriter', 'question_decomposer')
+    workflow.add_edge('question_decomposer', 'retrieve_evidence')
+    workflow.add_edge('retrieve_evidence', 'draft_generator')
+    workflow.add_edge('draft_generator', END)
 
     return workflow.compile()

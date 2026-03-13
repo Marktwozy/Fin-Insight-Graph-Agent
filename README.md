@@ -15,6 +15,14 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 - `Neo4j`: entity and event relationship retrieval plane
 - `LangGraph`: research and event analysis workflows
 
+## Model runtime configuration
+- `FIGA_EMBEDDING_PROVIDER=simple|openai_compatible`
+- `FIGA_LLM_PROVIDER=heuristic|openai_compatible`
+- `FIGA_RERANKER_PROVIDER=heuristic|http_bge`
+- `FIGA_MODEL_API_BASE_URL` and `FIGA_MODEL_API_KEY` configure OpenAI-compatible embedding and chat endpoints
+- `FIGA_RERANKER_API_URL` configures a remote BGE-style reranker endpoint
+- `FIGA_PROMPT_VERSION` is persisted with evaluation runs
+
 ## Local development
 1. Start the stack with `docker compose up -d postgres qdrant neo4j prometheus grafana`.
 2. Apply schema changes with `uv run alembic upgrade head`.

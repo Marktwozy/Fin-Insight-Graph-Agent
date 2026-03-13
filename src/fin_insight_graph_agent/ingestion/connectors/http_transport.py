@@ -30,3 +30,20 @@ class HttpTransport:
         request = Request(request_url, headers=headers or {})
         with urlopen(request) as response:  # noqa: S310
             return response.read().decode("utf-8")
+
+    def post_json(
+        self,
+        url: str,
+        *,
+        payload: dict[str, Any],
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        request_headers = {"Content-Type": "application/json", **(headers or {})}
+        request = Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers=request_headers,
+            method="POST",
+        )
+        with urlopen(request) as response:  # noqa: S310
+            return json.loads(response.read().decode("utf-8"))

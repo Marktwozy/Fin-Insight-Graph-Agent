@@ -20,6 +20,9 @@ from fin_insight_graph_agent.storage.models.evaluation import EvalRun
 class EvaluationReport:
     suite_name: str
     case_count: int
+    batch_id: str = 'evaluation'
+    prompt_version: str = 'prompt:v1'
+    model_version: str = 'heuristic'
     summaries: list[MetricSummary] = field(default_factory=list)
 
     @property
@@ -38,14 +41,15 @@ class SqlEvaluationPersister:
         engine = create_db_engine()
         with Session(engine) as session:
             faithfulness = 0.0
-            if "faithfulness" in report.metric_names:
-                faithfulness = report.metric_value("faithfulness")
+            if 'faithfulness' in report.metric_names:
+                faithfulness = report.metric_value('faithfulness')
             session.add(
                 EvalRun(
                     id=uuid.uuid4().hex,
                     suite_name=report.suite_name,
-                    batch_id="evaluation",
-                    prompt_version="v1",
+                    batch_id=report.batch_id,
+                    prompt_version=report.prompt_version,
+                    model_version=report.model_version,
                     faithfulness_score=faithfulness,
                 )
             )
@@ -55,10 +59,10 @@ class SqlEvaluationPersister:
 class EvaluationRunner:
     def __init__(self, dependencies):
         self.dependencies = dependencies
-        self.ragas_adapter = getattr(dependencies, "ragas_adapter", HeuristicRagasAdapter())
+        self.ragas_adapter = getattr(dependencies, 'ragas_adapter', HeuristicRagasAdapter())
         self.business_adapter = getattr(
             dependencies,
-            "business_adapter",
+            'business_adapter',
             BusinessMetricAdapter(),
         )
 
@@ -73,9 +77,12 @@ class EvaluationRunner:
         report = EvaluationReport(
             suite_name=suite_name,
             case_count=len(cases),
+            batch_id=getattr(self.dependencies, 'batch_id', 'evaluation'),
+            prompt_version=getattr(self.dependencies, 'prompt_version', 'prompt:v1'),
+            model_version=getattr(self.dependencies, 'model_version', 'heuristic'),
             summaries=aggregate_metric_scores(case_scores),
         )
-        persist_report = getattr(self.dependencies, "persist_report", None)
+        persist_report = getattr(self.dependencies, 'persist_report', None)
         if persist_report is not None:
             persist_report(report)
         return report

@@ -14,7 +14,7 @@ from fin_insight_graph_agent.retrieval.sparse_encoder import SimpleSparseEncoder
 @dataclass(slots=True)
 class QdrantSearchClient:
     client: QdrantClient
-    dense_embedder: SimpleDenseEmbedder
+    dense_embedder: Any
     sparse_encoder: SimpleSparseEncoder
 
     def recreate_collection(self, collection_name: str) -> None:
@@ -23,12 +23,12 @@ class QdrantSearchClient:
         self.client.create_collection(
             collection_name=collection_name,
             vectors_config={
-                "dense": models.VectorParams(
+                'dense': models.VectorParams(
                     size=self.dense_embedder.dimensions,
                     distance=models.Distance.COSINE,
                 )
             },
-            sparse_vectors_config={"sparse": models.SparseVectorParams()},
+            sparse_vectors_config={'sparse': models.SparseVectorParams()},
         )
 
     def upsert(self, collection_name: str, points: list[models.PointStruct]) -> None:
@@ -45,7 +45,7 @@ class QdrantSearchClient:
         batch_filter = models.Filter(
             must=[
                 models.FieldCondition(
-                    key="batch_id",
+                    key='batch_id',
                     match=models.MatchValue(value=batch_id),
                 )
             ]
@@ -55,13 +55,13 @@ class QdrantSearchClient:
             prefetch=[
                 models.Prefetch(
                     query=dense_vector,
-                    using="dense",
+                    using='dense',
                     limit=limit,
                     filter=batch_filter,
                 ),
                 models.Prefetch(
                     query=sparse_vector,
-                    using="sparse",
+                    using='sparse',
                     limit=limit,
                     filter=batch_filter,
                 ),
@@ -71,15 +71,20 @@ class QdrantSearchClient:
             limit=limit,
         )
         return [
-            {"id": point.id, "payload": point.payload, "score": point.score}
+            {'id': point.id, 'payload': point.payload, 'score': point.score}
             for point in response.points
         ]
 
 
-def build_qdrant_client(url: str | None = None) -> QdrantSearchClient:
-    qdrant_url = url or os.getenv("FIGA_QDRANT_URL", "http://127.0.0.1:6333")
+def build_qdrant_client(
+    url: str | None = None,
+    *,
+    dense_embedder: Any | None = None,
+    sparse_encoder: SimpleSparseEncoder | None = None,
+) -> QdrantSearchClient:
+    qdrant_url = url or os.getenv('FIGA_QDRANT_URL', 'http://127.0.0.1:6333')
     return QdrantSearchClient(
         client=QdrantClient(url=qdrant_url, check_compatibility=False),
-        dense_embedder=SimpleDenseEmbedder(),
-        sparse_encoder=SimpleSparseEncoder(),
+        dense_embedder=dense_embedder or SimpleDenseEmbedder(),
+        sparse_encoder=sparse_encoder or SimpleSparseEncoder(),
     )

@@ -6,8 +6,8 @@ from datetime import date
 from pathlib import Path
 
 from fin_insight_graph_agent.ingestion.daily_batch import (
-    DailyBatchOrchestrator,
     build_batch_id_for_date,
+    build_daily_batch_orchestrator,
 )
 from fin_insight_graph_agent.ingestion.publish_batch import build_quality_gated_batch_publisher
 from fin_insight_graph_agent.ingestion.source_sync import (
@@ -80,10 +80,7 @@ def main() -> str:
             f"indexed_chunks={batch_summary.indexed_chunk_count}"
         )
     if args.job == "daily-batch":
-        orchestrator = DailyBatchOrchestrator(
-            build_official_source_sync_job(),
-            build_quality_gated_batch_publisher(),
-        )
+        orchestrator = build_daily_batch_orchestrator()
         targets = _load_targets(args.targets_file)
         run_summary = orchestrator.run(
             targets=targets,

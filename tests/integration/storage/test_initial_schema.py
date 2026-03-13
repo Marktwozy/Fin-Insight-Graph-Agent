@@ -13,5 +13,6 @@ def test_initial_schema_contains_core_tables(db_engine):
         'eval_runs',
         'batch_publications',
         'batch_quality_gate_runs',
+        'daily_batch_runs',
     }
     assert expected.issubset(table_names)

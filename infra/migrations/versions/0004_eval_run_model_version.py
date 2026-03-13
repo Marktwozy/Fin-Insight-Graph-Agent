@@ -12,7 +12,12 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         'eval_runs',
-        sa.Column('model_version', sa.String(length=128), nullable=False, server_default='heuristic'),
+        sa.Column(
+            'model_version',
+            sa.String(length=128),
+            nullable=False,
+            server_default='heuristic',
+        ),
     )
 
 

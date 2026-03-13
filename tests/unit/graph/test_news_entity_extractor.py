@@ -11,7 +11,11 @@ def test_extract_graph_projection_records_maps_news_article_to_company_event_and
         source="Reuters",
     )
 
-    records = extract_graph_projection_records([article], ticker="NVDA", batch_id="batch-20260313")
+    records = extract_graph_projection_records(
+        [article],
+        ticker="NVDA",
+        batch_id="batch-20260313",
+    )
 
     assert records[0].entity_id == "company:nvda"
     assert records[0].entity_name == "NVDA"
@@ -25,12 +29,17 @@ def test_extract_graph_projection_records_emits_multiple_entities_and_event_clas
         url="https://example.com/news/chip-supply",
         time_published="20260313T150000",
         summary=(
-            "TSMC fab maintenance and tighter export restrictions may hit NVIDIA and AMD GPU supply chains."
+            "TSMC fab maintenance and tighter export restrictions may hit NVIDIA and AMD "
+            "GPU supply chains."
         ),
         source="Reuters",
     )
 
-    records = extract_graph_projection_records([article], ticker="NVDA", batch_id="batch-20260313")
+    records = extract_graph_projection_records(
+        [article],
+        ticker="NVDA",
+        batch_id="batch-20260313",
+    )
 
     entity_ids = {record.entity_id for record in records}
     topics = {record.related_topic for record in records}

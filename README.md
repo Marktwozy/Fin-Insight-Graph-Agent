@@ -62,6 +62,11 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/v1/query `
 - `uv run ruff check .`
 - `uv run mypy src`
 
+## Batch audit and observability
+- Daily orchestrated runs persist into the `daily_batch_runs` table with terminal status, tickers, validation payload, duration, and error context.
+- Graph publish gates persist into `batch_quality_gate_runs` for batch-level promotion audit.
+- Prometheus exposes `figa_daily_batch_run_total`, `figa_daily_batch_run_seconds`, and `figa_source_sync_retry_total` for scheduler health and retry visibility.
+
 ## Documentation
 - `docs/reports/v1-technical-brief.md`
 - `docs/guides/v1-implementation-walkthrough.md`

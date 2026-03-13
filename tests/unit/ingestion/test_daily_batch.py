@@ -12,6 +12,7 @@ class FakeValidation:
         self.passed = passed
         self.suite_name = 'graph_retrieval_smoke'
         self.metrics = metrics
+        self.thresholds = {'topic_hit_rate': 0.5}
         self.threshold_failures = threshold_failures
 
 
@@ -32,6 +33,11 @@ class FakeSourceSyncJob:
         )
 
 
+class FailingSourceSyncJob:
+    def sync_companies(self, *, targets, batch_id):
+        raise RuntimeError('sync failed')
+
+
 class FakePublisher:
     def __init__(self, validation):
         self.validation = validation
@@ -46,6 +52,20 @@ class FakePublisher:
         self.published.append(batch_id)
 
 
+class FakeAuditRepository:
+    def __init__(self):
+        self.created = []
+        self.completed = []
+
+    def create_run(self, **kwargs):
+        self.created.append(kwargs)
+        return type('Record', (), {'id': 'run-1'})()
+
+    def complete_run(self, run_id, **kwargs):
+        self.completed.append((run_id, kwargs))
+        return None
+
+
 
 def test_daily_batch_orchestrator_syncs_validates_and_publishes():
     sync_job = FakeSourceSyncJob()
@@ -55,7 +75,8 @@ def test_daily_batch_orchestrator_syncs_validates_and_publishes():
         threshold_failures=[],
     )
     publisher = FakePublisher(validation)
-    orchestrator = DailyBatchOrchestrator(sync_job, publisher)
+    audit_repository = FakeAuditRepository()
+    orchestrator = DailyBatchOrchestrator(sync_job, publisher, audit_repository)
 
     summary = orchestrator.run(
         targets=[CompanySyncTarget(ticker='NVDA', cik='1045810')],
@@ -65,6 +86,8 @@ def test_daily_batch_orchestrator_syncs_validates_and_publishes():
     assert sync_job.calls[0][1] == 'batch-20260313'
     assert publisher.validated == ['batch-20260313']
     assert publisher.published == ['batch-20260313']
+    assert audit_repository.created[0]['batch_id'] == 'batch-20260313'
+    assert audit_repository.completed[0][1]['status'] == 'published'
     assert summary.published is True
 
 
@@ -77,7 +100,8 @@ def test_daily_batch_orchestrator_skips_publish_when_requested():
         threshold_failures=[],
     )
     publisher = FakePublisher(validation)
-    orchestrator = DailyBatchOrchestrator(sync_job, publisher)
+    audit_repository = FakeAuditRepository()
+    orchestrator = DailyBatchOrchestrator(sync_job, publisher, audit_repository)
 
     summary = orchestrator.run(
         targets=[CompanySyncTarget(ticker='NVDA', cik='1045810')],
@@ -87,6 +111,7 @@ def test_daily_batch_orchestrator_skips_publish_when_requested():
 
     assert publisher.validated == ['batch-20260313']
     assert publisher.published == []
+    assert audit_repository.completed[0][1]['status'] == 'validated'
     assert summary.published is False
 
 
@@ -99,7 +124,8 @@ def test_daily_batch_orchestrator_does_not_publish_when_validation_fails():
         threshold_failures=[{'metric_name': 'topic_hit_rate'}],
     )
     publisher = FakePublisher(validation)
-    orchestrator = DailyBatchOrchestrator(sync_job, publisher)
+    audit_repository = FakeAuditRepository()
+    orchestrator = DailyBatchOrchestrator(sync_job, publisher, audit_repository)
 
     summary = orchestrator.run(
         targets=[CompanySyncTarget(ticker='NVDA', cik='1045810')],
@@ -107,7 +133,31 @@ def test_daily_batch_orchestrator_does_not_publish_when_validation_fails():
     )
 
     assert publisher.published == []
+    assert audit_repository.completed[0][1]['status'] == 'failed_quality_gate'
     assert summary.published is False
+
+
+
+def test_daily_batch_orchestrator_records_failed_audit_when_sync_raises():
+    audit_repository = FakeAuditRepository()
+    orchestrator = DailyBatchOrchestrator(
+        FailingSourceSyncJob(),
+        FakePublisher(FakeValidation(True, {'topic_hit_rate': 1.0}, [])),
+        audit_repository,
+    )
+
+    try:
+        orchestrator.run(
+            targets=[CompanySyncTarget(ticker='NVDA', cik='1045810')],
+            batch_id='batch-20260313',
+        )
+    except RuntimeError as exc:
+        assert str(exc) == 'sync failed'
+    else:
+        raise AssertionError('Expected RuntimeError')
+
+    assert audit_repository.completed[0][1]['status'] == 'failed'
+    assert audit_repository.completed[0][1]['error_message'] == 'sync failed'
 
 
 

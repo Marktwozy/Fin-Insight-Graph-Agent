@@ -65,8 +65,8 @@ class FakeDailyBatchOrchestrator:
             ),
             validation=FakeValidationResult(passed=True),
             published=publish_on_pass,
+            status='published' if publish_on_pass else 'validated',
         )
-
 
 
 def test_worker_publish_batch_returns_blocked_message_when_quality_gate_fails(monkeypatch):
@@ -89,7 +89,6 @@ def test_worker_publish_batch_returns_blocked_message_when_quality_gate_fails(mo
     assert 'batch publish blocked' in message
 
 
-
 def test_worker_publish_batch_promotes_batch_when_quality_gate_passes(monkeypatch):
     publisher = FakePublisher(FakeValidationResult(passed=True))
     monkeypatch.setattr(
@@ -108,7 +107,6 @@ def test_worker_publish_batch_promotes_batch_when_quality_gate_passes(monkeypatc
     assert publisher.validated_batch_ids == ['batch-20260313']
     assert publisher.published_batch_ids == ['batch-20260313']
     assert 'batch published' in message
-
 
 
 def test_worker_source_sync_batch_loads_targets_file_and_returns_summary(monkeypatch):
@@ -145,8 +143,7 @@ def test_worker_source_sync_batch_loads_targets_file_and_returns_summary(monkeyp
     assert 'tickers=NVDA,AMD' in message
 
 
-
-def test_worker_daily_batch_runs_orchestration_and_uses_batch_date(monkeypatch):
+def test_worker_daily_batch_uses_orchestrator_builder_and_batch_date(monkeypatch):
     temp_root = Path('D:/myAgent/.worktrees/fin-insight-v1/tests/.tmp/worker-daily-batch')
     if temp_root.exists():
         shutil.rmtree(temp_root)
@@ -163,11 +160,9 @@ def test_worker_daily_batch_runs_orchestration_and_uses_batch_date(monkeypatch):
     orchestrator = FakeDailyBatchOrchestrator()
     monkeypatch.setattr(
         worker_main,
-        'DailyBatchOrchestrator',
-        lambda *_args, **_kwargs: orchestrator,
+        'build_daily_batch_orchestrator',
+        lambda: orchestrator,
     )
-    monkeypatch.setattr(worker_main, 'build_official_source_sync_job', lambda: object())
-    monkeypatch.setattr(worker_main, 'build_quality_gated_batch_publisher', lambda: object())
     monkeypatch.setattr(
         worker_main,
         'build_parser',
@@ -190,7 +185,6 @@ def test_worker_daily_batch_runs_orchestration_and_uses_batch_date(monkeypatch):
     assert batch_id == 'batch-20260313'
     assert publish_on_pass is False
     assert 'daily batch validated but not published' in message
-
 
 
 def _args(job, batch_id, targets_file='', batch_date='', skip_publish=False):

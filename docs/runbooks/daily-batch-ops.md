@@ -34,6 +34,12 @@ Publish one consistent daily batch covering documents, market data, graph projec
 - If retries are exhausted, the batch is marked `failed` so the run can be repaired and replayed explicitly.
 - Validated or published batches are protected from in-place resync to preserve reproducibility.
 
+## Audit and metrics
+- Every `daily-batch` run writes a row into `daily_batch_runs` with `status`, `target_count`, ticker list, sync summary payload, validation payload, duration, and terminal error context.
+- Graph quality gate decisions continue to write into `batch_quality_gate_runs`, which pairs with `daily_batch_runs` for publish audit.
+- Prometheus metrics to watch for scheduler health are `figa_daily_batch_run_total`, `figa_daily_batch_run_seconds`, and `figa_source_sync_retry_total`.
+- A healthy publish cycle should show `published` or `validated` terminal statuses and low retry counts for the SEC and Alpha Vantage operations.
+
 ## Query checks after sync
 - Research sample:
 

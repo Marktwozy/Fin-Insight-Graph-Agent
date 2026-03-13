@@ -1,6 +1,7 @@
 from fin_insight_graph_agent.storage.models.agent_run import AgentRun
 from fin_insight_graph_agent.storage.models.batch import BatchPublication
 from fin_insight_graph_agent.storage.models.batch_quality_gate import BatchQualityGateRun
+from fin_insight_graph_agent.storage.models.daily_batch import DailyBatchRun
 from fin_insight_graph_agent.storage.models.document import Chunk, Document
 from fin_insight_graph_agent.storage.models.entity import Entity
 from fin_insight_graph_agent.storage.models.evaluation import EvalRun
@@ -12,6 +13,7 @@ __all__ = [
     "BatchPublication",
     "BatchQualityGateRun",
     "Chunk",
+    "DailyBatchRun",
     "Document",
     "Entity",
     "EvalRun",

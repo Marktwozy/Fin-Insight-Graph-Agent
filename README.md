@@ -22,6 +22,7 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 - `FIGA_MODEL_API_BASE_URL` and `FIGA_MODEL_API_KEY` configure OpenAI-compatible embedding and chat endpoints
 - `FIGA_RERANKER_API_URL`, `FIGA_RERANKER_API_KEY`, and `FIGA_RERANKER_MODEL` configure remote reranker endpoints
 - `FIGA_RERANKER_INSTRUCT` optionally sets a custom instruction for `qwen3-rerank` models
+- `FIGA_SOURCE_SYNC_MAX_ATTEMPTS` and `FIGA_SOURCE_SYNC_RETRY_BACKOFF_SECONDS` configure source-sync retry behavior
 - `FIGA_PROMPT_VERSION` is persisted with evaluation runs
 - `FIGA_QDRANT_COLLECTION_NAME` selects the target collection for source-sync indexing
 
@@ -33,11 +34,12 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 5. Gate graph retrieval quality with `uv run python -m apps.evaluator.main --suite graph_retrieval_smoke --dataset-root tests/fixtures/evaluation --enforce-thresholds`.
 6. Run an official source sync with `uv run python -m apps.worker.main --job source-sync --ticker NVDA --cik 1045810 --batch-id batch-20260313`.
 7. Run a multi-company source sync with `uv run python -m apps.worker.main --job source-sync-batch --targets-file examples/source_sync_targets.example.json --batch-id batch-20260313`.
-8. Promote a batch with `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`.
+8. Run the daily orchestrated job with `uv run python -m apps.worker.main --job daily-batch --targets-file examples/source_sync_targets.example.json`.
+9. Promote a batch manually with `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`.
 
 ## Query a research sample locally
 1. Prepare `.env.local` with your embedding, reranker, and LLM provider settings.
-2. Sync a batch with `source-sync` or `source-sync-batch`.
+2. Sync a batch with `source-sync`, `source-sync-batch`, or `daily-batch`.
 3. Start the API with `uv run uvicorn apps.api.main:create_app --factory --reload`.
 4. Call the research route from PowerShell:
 

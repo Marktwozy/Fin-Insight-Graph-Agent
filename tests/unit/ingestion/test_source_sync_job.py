@@ -36,12 +36,12 @@ class AlwaysFailingSecClient(FakeSecClient):
 
 
 class FakeNewsArticle:
-    def __init__(self, title, url, summary):
+    def __init__(self, title, url, summary, time_published='20260313T120000'):
         self.title = title
         self.url = url
         self.summary = summary
         self.source = "Reuters"
-        self.time_published = "20260313T120000"
+        self.time_published = time_published
 
 
 class FakeAlphaVantageClient:
@@ -66,6 +66,41 @@ class FakeAlphaVantageClient:
                 url=f"https://example.com/news/{symbol.lower()}-supply",
                 summary="Capacity remains tight across packaging suppliers.",
             )
+        ]
+
+
+class DuplicatingAlphaVantageClient(FakeAlphaVantageClient):
+    def fetch_news_sentiment(self, tickers, limit=20):
+        symbol = tickers[0]
+        if symbol == 'NVDA':
+            return [
+                FakeNewsArticle(
+                    title='Shared packaging article',
+                    url='https://example.com/news/shared-packaging',
+                    summary='Shared packaging constraints affect multiple chip firms.',
+                ),
+                FakeNewsArticle(
+                    title='Shared packaging article duplicate',
+                    url='https://example.com/news/shared-packaging',
+                    summary='Shared packaging constraints affect multiple chip firms.',
+                ),
+                FakeNewsArticle(
+                    title='NVDA unique article',
+                    url='https://example.com/news/nvda-unique',
+                    summary='NVIDIA specific packaging commentary.',
+                ),
+            ]
+        return [
+            FakeNewsArticle(
+                title='Shared packaging article from AMD feed',
+                url='https://example.com/news/shared-packaging',
+                summary='Shared packaging constraints affect multiple chip firms.',
+            ),
+            FakeNewsArticle(
+                title='AMD unique article',
+                url='https://example.com/news/amd-unique',
+                summary='AMD specific supplier commentary.',
+            ),
         ]
 
 
@@ -192,6 +227,35 @@ def test_official_source_sync_job_syncs_multiple_companies_into_one_batch():
     assert len(document_repository.saved) == 6
     assert len(market_repository.saved) == 2
     assert len(chunk_indexer.indexed) == 2
+
+
+def test_official_source_sync_job_deduplicates_news_within_and_across_company_feeds():
+    document_repository = FakeDocumentRepository()
+    market_repository = FakeMarketRepository()
+    batch_repository = FakeBatchRepository()
+    entity_projector = FakeEntityProjector()
+    chunk_indexer = FakeChunkIndexer()
+    job = OfficialSourceSyncJob(
+        sec_client=FakeSecClient(),
+        alpha_vantage_client=DuplicatingAlphaVantageClient(),
+        document_repository=document_repository,
+        market_repository=market_repository,
+        batch_repository=batch_repository,
+        entity_projector=entity_projector,
+        chunk_indexer=chunk_indexer,
+    )
+
+    summary = job.sync_companies(
+        targets=[
+            CompanySyncTarget(ticker="NVDA", cik="1045810"),
+            CompanySyncTarget(ticker="AMD", cik="2488"),
+        ],
+        batch_id="batch-20260314",
+    )
+
+    assert summary.document_count == 7
+    assert summary.news_document_count == 3
+    assert len(document_repository.saved) == 7
 
 
 def test_official_source_sync_job_retries_transient_source_failures():

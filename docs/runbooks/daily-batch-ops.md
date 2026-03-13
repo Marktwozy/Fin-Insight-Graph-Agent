@@ -15,11 +15,21 @@ Publish one consistent daily batch covering documents, market data, graph projec
 ## Worker commands
 - Source sync: `uv run python -m apps.worker.main --job source-sync --ticker NVDA --cik 1045810 --batch-id batch-20260313`
 - Multi-company source sync: `uv run python -m apps.worker.main --job source-sync-batch --targets-file examples/source_sync_targets.example.json --batch-id batch-20260313`
+- Daily orchestrated batch: `uv run python -m apps.worker.main --job daily-batch --targets-file examples/source_sync_targets.example.json`
+- Daily orchestrated batch without publish: `uv run python -m apps.worker.main --job daily-batch --targets-file examples/source_sync_targets.example.json --skip-publish`
 - Batch publish: `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`
 - Standalone graph gate: `uv run python -m apps.evaluator.main --suite graph_retrieval_smoke --dataset-root tests/fixtures/evaluation --enforce-thresholds`
 
+## Scheduling pattern
+- `daily-batch` is the entrypoint intended for Windows Task Scheduler or cron.
+- If `--batch-id` is omitted, the worker generates the batch id from the local date as `batch-YYYYMMDD`.
+- You can override the date with `--batch-date YYYY-MM-DD` for replay or backfill.
+- Recommended scheduler target on Windows:
+  `uv run python -m apps.worker.main --job daily-batch --targets-file examples/source_sync_targets.example.json`
+
 ## Reliability notes
-- Source sync is now idempotent for the same `batch_id`: rerunning the same company/batch pair rewrites the same canonical documents and chunk IDs instead of duplicating rows.
+- Source sync is idempotent for the same `batch_id`: rerunning the same company or daily batch rewrites the same canonical documents and chunk IDs instead of duplicating rows.
+- News ingestion deduplicates repeated articles by URL, and `source-sync-batch` also deduplicates repeated cross-ticker articles within the same batch.
 - Source sync retries transient upstream failures according to `FIGA_SOURCE_SYNC_MAX_ATTEMPTS` and `FIGA_SOURCE_SYNC_RETRY_BACKOFF_SECONDS`.
 - If retries are exhausted, the batch is marked `failed` so the run can be repaired and replayed explicitly.
 - Validated or published batches are protected from in-place resync to preserve reproducibility.

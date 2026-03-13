@@ -92,7 +92,11 @@ class OfficialSourceSyncJob:
     def sync_company(self, cik: str, ticker: str, batch_id: str) -> SourceSyncSummary:
         self._batch_repository.ensure_staged_batch(batch_id)
         try:
-            return self._sync_company_internal(cik=cik, ticker=ticker, batch_id=batch_id)
+            return self._sync_company_internal(
+                cik=cik,
+                ticker=ticker,
+                batch_id=batch_id,
+            )
         except Exception:
             self._batch_repository.update_status(batch_id, 'failed')
             raise
@@ -106,12 +110,14 @@ class OfficialSourceSyncJob:
             raise ValueError('At least one sync target is required')
 
         self._batch_repository.ensure_staged_batch(batch_id)
+        seen_news_keys: set[str] = set()
         try:
             summaries = [
                 self._sync_company_internal(
                     cik=target.cik,
                     ticker=target.ticker,
                     batch_id=batch_id,
+                    seen_news_keys=seen_news_keys,
                 )
                 for target in targets
             ]
@@ -128,7 +134,14 @@ class OfficialSourceSyncJob:
             indexed_chunk_count=sum(summary.indexed_chunk_count for summary in summaries),
         )
 
-    def _sync_company_internal(self, cik: str, ticker: str, batch_id: str) -> SourceSyncSummary:
+    def _sync_company_internal(
+        self,
+        *,
+        cik: str,
+        ticker: str,
+        batch_id: str,
+        seen_news_keys: set[str] | None = None,
+    ) -> SourceSyncSummary:
         submissions = self._call_with_retry(
             lambda: self._sec_client.fetch_submissions(cik),
             operation_name=f'{ticker}.sec_submissions',
@@ -137,9 +150,13 @@ class OfficialSourceSyncJob:
             lambda: self._sec_client.fetch_company_facts(cik),
             operation_name=f'{ticker}.sec_company_facts',
         )
-        news_feed = self._call_with_retry(
+        fetched_news_feed = self._call_with_retry(
             lambda: self._alpha_vantage_client.fetch_news_sentiment([ticker], limit=20),
             operation_name=f'{ticker}.news_sentiment',
+        )
+        news_feed = _deduplicate_news_articles(
+            fetched_news_feed,
+            seen_keys=seen_news_keys,
         )
         documents = [
             self._build_raw_document(
@@ -283,6 +300,33 @@ class OfficialSourceSyncJob:
                 sort_keys=True,
             ),
         )
+
+
+def _deduplicate_news_articles(
+    articles: list[NewsSentimentArticle | Any],
+    *,
+    seen_keys: set[str] | None = None,
+) -> list[NewsSentimentArticle | Any]:
+    deduplicated: list[NewsSentimentArticle | Any] = []
+    local_keys: set[str] = set()
+    global_keys = seen_keys if seen_keys is not None else set()
+    for article in articles:
+        article_key = _news_article_key(article)
+        if article_key in local_keys or article_key in global_keys:
+            continue
+        local_keys.add(article_key)
+        global_keys.add(article_key)
+        deduplicated.append(article)
+    return deduplicated
+
+
+def _news_article_key(article: NewsSentimentArticle | Any) -> str:
+    url = str(getattr(article, 'url', '') or '').strip().lower()
+    title = str(getattr(article, 'title', '') or '').strip().lower()
+    published = str(getattr(article, 'time_published', '') or '').strip().lower()
+    if url:
+        return url
+    return f'{title}|{published}'
 
 
 def build_official_source_sync_job(settings: AppSettings | None = None) -> OfficialSourceSyncJob:

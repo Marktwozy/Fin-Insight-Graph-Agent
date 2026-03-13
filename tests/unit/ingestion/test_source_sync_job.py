@@ -71,16 +71,26 @@ class FakeBatchRepository:
         return {"batch_id": batch_id, "status": status}
 
 
-def test_official_source_sync_job_persists_sec_documents_market_bars_and_news():
+class FakeEntityProjector:
+    def __init__(self):
+        self.projected = []
+
+    def project(self, records):
+        self.projected.extend(records)
+
+
+def test_official_source_sync_job_persists_sec_documents_market_bars_news_and_graph_projection():
     document_repository = FakeDocumentRepository()
     market_repository = FakeMarketRepository()
     batch_repository = FakeBatchRepository()
+    entity_projector = FakeEntityProjector()
     job = OfficialSourceSyncJob(
         sec_client=FakeSecClient(),
         alpha_vantage_client=FakeAlphaVantageClient(),
         document_repository=document_repository,
         market_repository=market_repository,
         batch_repository=batch_repository,
+        entity_projector=entity_projector,
     )
 
     summary = job.sync_company(cik="1045810", ticker="NVDA", batch_id="batch-20260313")
@@ -91,3 +101,5 @@ def test_official_source_sync_job_persists_sec_documents_market_bars_and_news():
     assert summary.document_count == 3
     assert summary.market_bar_count == 1
     assert summary.news_document_count == 1
+    assert entity_projector.projected[0].entity_id == "company:nvda"
+    assert entity_projector.projected[0].related_event_name == "NVIDIA supplier capacity tightens"

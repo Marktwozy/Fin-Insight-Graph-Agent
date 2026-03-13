@@ -5,6 +5,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from fin_insight_graph_agent.common.settings import AppSettings
+from fin_insight_graph_agent.graph.neo4j_client import build_neo4j_client
+from fin_insight_graph_agent.graph.news_entity_extractor import (
+    extract_graph_projection_records,
+)
+from fin_insight_graph_agent.graph.project_entities import EntityProjector
 from fin_insight_graph_agent.ingestion.chunker import chunk_document
 from fin_insight_graph_agent.ingestion.connectors.alpha_vantage import (
     AlphaVantageClient,
@@ -36,6 +41,7 @@ class OfficialSourceSyncJob:
         document_repository: DocumentRepository | Any,
         market_repository: MarketRepository | Any,
         batch_repository: BatchRepository | Any,
+        entity_projector: EntityProjector | Any | None = None,
         chunk_size: int = 900,
         overlap: int = 120,
     ) -> None:
@@ -44,6 +50,7 @@ class OfficialSourceSyncJob:
         self._document_repository = document_repository
         self._market_repository = market_repository
         self._batch_repository = batch_repository
+        self._entity_projector = entity_projector
         self._chunk_size = chunk_size
         self._overlap = overlap
 
@@ -82,6 +89,15 @@ class OfficialSourceSyncJob:
                 overlap=self._overlap,
             )
             self._document_repository.save_document_with_chunks(normalized_document, chunks)
+
+        if self._entity_projector is not None and news_feed:
+            self._entity_projector.project(
+                extract_graph_projection_records(
+                    news_feed,
+                    ticker=ticker,
+                    batch_id=batch_id,
+                )
+            )
 
         bars = self._alpha_vantage_client.fetch_daily_adjusted(ticker)
         self._market_repository.upsert_daily_bars(bars, batch_id=batch_id)
@@ -147,4 +163,5 @@ def build_official_source_sync_job(settings: AppSettings | None = None) -> Offic
         document_repository=DocumentRepository(engine),
         market_repository=MarketRepository(engine),
         batch_repository=BatchRepository(engine),
+        entity_projector=EntityProjector(build_neo4j_client()),
     )

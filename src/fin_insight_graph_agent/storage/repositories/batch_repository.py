@@ -18,6 +18,23 @@ class BatchRepository:
             session.refresh(batch)
             return batch
 
+    def ensure_staged_batch(self, batch_id: str) -> BatchPublication:
+        with Session(self._engine) as session:
+            batch = session.get(BatchPublication, batch_id)
+            if batch is None:
+                batch = BatchPublication(batch_id=batch_id, status='staged')
+                session.add(batch)
+            elif batch.status in {'validated', 'published'}:
+                raise ValueError(
+                    'Validated or published batches cannot be resynced in place'
+                )
+            else:
+                batch.status = 'staged'
+            session.commit()
+            session.refresh(batch)
+            session.expunge(batch)
+            return batch
+
     def update_status(self, batch_id: str, status: str) -> BatchPublication:
         with Session(self._engine) as session:
             batch = session.get(BatchPublication, batch_id)

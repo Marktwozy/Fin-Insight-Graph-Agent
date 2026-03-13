@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
+from time import sleep
 from typing import Any
 
 from fin_insight_graph_agent.common.settings import AppSettings
@@ -69,6 +71,9 @@ class OfficialSourceSyncJob:
         qdrant_collection_name: str = 'chunks',
         chunk_size: int = 900,
         overlap: int = 120,
+        max_attempts: int = 3,
+        retry_backoff_seconds: float = 0.0,
+        sleeper: Callable[[float], None] | None = None,
     ) -> None:
         self._sec_client = sec_client
         self._alpha_vantage_client = alpha_vantage_client
@@ -80,10 +85,17 @@ class OfficialSourceSyncJob:
         self._qdrant_collection_name = qdrant_collection_name
         self._chunk_size = chunk_size
         self._overlap = overlap
+        self._max_attempts = max_attempts
+        self._retry_backoff_seconds = retry_backoff_seconds
+        self._sleeper = sleeper or sleep
 
     def sync_company(self, cik: str, ticker: str, batch_id: str) -> SourceSyncSummary:
-        self._batch_repository.create_batch(batch_id, 'staged')
-        return self._sync_company_internal(cik=cik, ticker=ticker, batch_id=batch_id)
+        self._batch_repository.ensure_staged_batch(batch_id)
+        try:
+            return self._sync_company_internal(cik=cik, ticker=ticker, batch_id=batch_id)
+        except Exception:
+            self._batch_repository.update_status(batch_id, 'failed')
+            raise
 
     def sync_companies(
         self,
@@ -93,15 +105,19 @@ class OfficialSourceSyncJob:
         if not targets:
             raise ValueError('At least one sync target is required')
 
-        self._batch_repository.create_batch(batch_id, 'staged')
-        summaries = [
-            self._sync_company_internal(
-                cik=target.cik,
-                ticker=target.ticker,
-                batch_id=batch_id,
-            )
-            for target in targets
-        ]
+        self._batch_repository.ensure_staged_batch(batch_id)
+        try:
+            summaries = [
+                self._sync_company_internal(
+                    cik=target.cik,
+                    ticker=target.ticker,
+                    batch_id=batch_id,
+                )
+                for target in targets
+            ]
+        except Exception:
+            self._batch_repository.update_status(batch_id, 'failed')
+            raise
         return SourceSyncBatchSummary(
             batch_id=batch_id,
             company_count=len(summaries),
@@ -113,9 +129,18 @@ class OfficialSourceSyncJob:
         )
 
     def _sync_company_internal(self, cik: str, ticker: str, batch_id: str) -> SourceSyncSummary:
-        submissions = self._sec_client.fetch_submissions(cik)
-        company_facts = self._sec_client.fetch_company_facts(cik)
-        news_feed = self._alpha_vantage_client.fetch_news_sentiment([ticker], limit=20)
+        submissions = self._call_with_retry(
+            lambda: self._sec_client.fetch_submissions(cik),
+            operation_name=f'{ticker}.sec_submissions',
+        )
+        company_facts = self._call_with_retry(
+            lambda: self._sec_client.fetch_company_facts(cik),
+            operation_name=f'{ticker}.sec_company_facts',
+        )
+        news_feed = self._call_with_retry(
+            lambda: self._alpha_vantage_client.fetch_news_sentiment([ticker], limit=20),
+            operation_name=f'{ticker}.news_sentiment',
+        )
         documents = [
             self._build_raw_document(
                 source_uri=f'sec://submissions/{cik}',
@@ -163,7 +188,10 @@ class OfficialSourceSyncJob:
                 )
             )
 
-        bars = self._alpha_vantage_client.fetch_daily_adjusted(ticker)
+        bars = self._call_with_retry(
+            lambda: self._alpha_vantage_client.fetch_daily_adjusted(ticker),
+            operation_name=f'{ticker}.daily_adjusted',
+        )
         self._market_repository.upsert_daily_bars(bars, batch_id=batch_id)
 
         return SourceSyncSummary(
@@ -174,6 +202,29 @@ class OfficialSourceSyncJob:
             news_document_count=len(news_feed),
             indexed_chunk_count=len(chunk_index_records),
         )
+
+    def _call_with_retry(
+        self,
+        operation: Callable[[], Any],
+        *,
+        operation_name: str,
+    ) -> Any:
+        last_error: Exception | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                return operation()
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                if attempt >= self._max_attempts:
+                    break
+                delay_seconds = self._retry_backoff_seconds * attempt
+                if delay_seconds > 0:
+                    self._sleeper(delay_seconds)
+        assert last_error is not None
+        raise RuntimeError(
+            f'Source sync operation failed after {self._max_attempts} attempts: '
+            f'{operation_name}'
+        ) from last_error
 
     @staticmethod
     def _build_chunk_index_records(normalized_document, chunks) -> list[ChunkIndexRecord]:
@@ -252,4 +303,6 @@ def build_official_source_sync_job(settings: AppSettings | None = None) -> Offic
         entity_projector=EntityProjector(build_neo4j_client()),
         chunk_indexer=build_chunk_indexer(resolved_settings),
         qdrant_collection_name=resolved_settings.qdrant_collection_name,
+        max_attempts=resolved_settings.source_sync_max_attempts,
+        retry_backoff_seconds=resolved_settings.source_sync_retry_backoff_seconds,
     )

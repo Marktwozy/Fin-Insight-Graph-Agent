@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from fin_insight_graph_agent.ingestion.market_loader import DailyBarRecord
 from fin_insight_graph_agent.ingestion.source_sync import (
     CompanySyncTarget,
@@ -14,6 +16,23 @@ class FakeSecClient:
 
     def fetch_company_facts(self, cik):
         return {"cik": cik, "facts": {"Revenue": "mock"}}
+
+
+class FlakySecClient(FakeSecClient):
+    def __init__(self, failures_before_success=1):
+        self.failures_before_success = failures_before_success
+        self.submission_calls = 0
+
+    def fetch_submissions(self, cik):
+        self.submission_calls += 1
+        if self.submission_calls <= self.failures_before_success:
+            raise RuntimeError('temporary sec outage')
+        return super().fetch_submissions(cik)
+
+
+class AlwaysFailingSecClient(FakeSecClient):
+    def fetch_submissions(self, cik):
+        raise RuntimeError('persistent sec outage')
 
 
 class FakeNewsArticle:
@@ -69,9 +88,22 @@ class FakeMarketRepository:
 class FakeBatchRepository:
     def __init__(self):
         self.created = []
+        self.updated = []
+        self.batches = {}
 
     def create_batch(self, batch_id, status):
         self.created.append((batch_id, status))
+        self.batches[batch_id] = status
+        return {"batch_id": batch_id, "status": status}
+
+    def ensure_staged_batch(self, batch_id):
+        self.created.append((batch_id, 'staged'))
+        self.batches[batch_id] = 'staged'
+        return {"batch_id": batch_id, "status": 'staged'}
+
+    def update_status(self, batch_id, status):
+        self.updated.append((batch_id, status))
+        self.batches[batch_id] = status
         return {"batch_id": batch_id, "status": status}
 
 
@@ -160,3 +192,45 @@ def test_official_source_sync_job_syncs_multiple_companies_into_one_batch():
     assert len(document_repository.saved) == 6
     assert len(market_repository.saved) == 2
     assert len(chunk_indexer.indexed) == 2
+
+
+def test_official_source_sync_job_retries_transient_source_failures():
+    document_repository = FakeDocumentRepository()
+    market_repository = FakeMarketRepository()
+    batch_repository = FakeBatchRepository()
+    sleeper_calls = []
+    sec_client = FlakySecClient(failures_before_success=1)
+    job = OfficialSourceSyncJob(
+        sec_client=sec_client,
+        alpha_vantage_client=FakeAlphaVantageClient(),
+        document_repository=document_repository,
+        market_repository=market_repository,
+        batch_repository=batch_repository,
+        max_attempts=3,
+        retry_backoff_seconds=0.25,
+        sleeper=sleeper_calls.append,
+    )
+
+    summary = job.sync_company(cik="1045810", ticker="NVDA", batch_id="batch-20260315")
+
+    assert summary.document_count == 3
+    assert sec_client.submission_calls == 2
+    assert sleeper_calls == [0.25]
+    assert batch_repository.updated == []
+
+
+def test_official_source_sync_job_marks_batch_failed_when_retries_are_exhausted():
+    batch_repository = FakeBatchRepository()
+    job = OfficialSourceSyncJob(
+        sec_client=AlwaysFailingSecClient(),
+        alpha_vantage_client=FakeAlphaVantageClient(),
+        document_repository=FakeDocumentRepository(),
+        market_repository=FakeMarketRepository(),
+        batch_repository=batch_repository,
+        max_attempts=2,
+    )
+
+    with pytest.raises(RuntimeError, match='Source sync operation failed after 2 attempts'):
+        job.sync_company(cik="1045810", ticker="NVDA", batch_id="batch-20260316")
+
+    assert batch_repository.updated == [("batch-20260316", "failed")]

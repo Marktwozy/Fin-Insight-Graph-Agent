@@ -31,5 +31,7 @@ class AppSettings(BaseSettings):
     reranker_api_key: str = ""
     reranker_model: str = "bge-reranker-v2-m3"
     reranker_instruct: str = ""
+    source_sync_max_attempts: int = 3
+    source_sync_retry_backoff_seconds: float = 0.0
     prompt_version: str = "prompt:v1"
     qdrant_collection_name: str = "chunks"

@@ -18,6 +18,12 @@ Publish one consistent daily batch covering documents, market data, graph projec
 - Batch publish: `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`
 - Standalone graph gate: `uv run python -m apps.evaluator.main --suite graph_retrieval_smoke --dataset-root tests/fixtures/evaluation --enforce-thresholds`
 
+## Reliability notes
+- Source sync is now idempotent for the same `batch_id`: rerunning the same company/batch pair rewrites the same canonical documents and chunk IDs instead of duplicating rows.
+- Source sync retries transient upstream failures according to `FIGA_SOURCE_SYNC_MAX_ATTEMPTS` and `FIGA_SOURCE_SYNC_RETRY_BACKOFF_SECONDS`.
+- If retries are exhausted, the batch is marked `failed` so the run can be repaired and replayed explicitly.
+- Validated or published batches are protected from in-place resync to preserve reproducibility.
+
 ## Query checks after sync
 - Research sample:
 

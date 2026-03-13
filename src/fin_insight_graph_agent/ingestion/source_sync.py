@@ -6,7 +6,10 @@ from typing import Any
 
 from fin_insight_graph_agent.common.settings import AppSettings
 from fin_insight_graph_agent.ingestion.chunker import chunk_document
-from fin_insight_graph_agent.ingestion.connectors.alpha_vantage import AlphaVantageClient
+from fin_insight_graph_agent.ingestion.connectors.alpha_vantage import (
+    AlphaVantageClient,
+    NewsSentimentArticle,
+)
 from fin_insight_graph_agent.ingestion.connectors.sec_edgar import SecEdgarClient
 from fin_insight_graph_agent.ingestion.document_loader import RawDocument
 from fin_insight_graph_agent.ingestion.document_normalizer import normalize_document
@@ -22,6 +25,7 @@ class SourceSyncSummary:
     ticker: str
     document_count: int
     market_bar_count: int
+    news_document_count: int
 
 
 class OfficialSourceSyncJob:
@@ -48,6 +52,7 @@ class OfficialSourceSyncJob:
 
         submissions = self._sec_client.fetch_submissions(cik)
         company_facts = self._sec_client.fetch_company_facts(cik)
+        news_feed = self._alpha_vantage_client.fetch_news_sentiment([ticker], limit=20)
         documents = [
             self._build_raw_document(
                 source_uri=f"sec://submissions/{cik}",
@@ -63,6 +68,10 @@ class OfficialSourceSyncJob:
                 title=f"{ticker} company facts",
                 payload=company_facts,
             ),
+            *[
+                self._build_news_document(article=article, ticker=ticker)
+                for article in news_feed
+            ],
         ]
 
         for raw_document in documents:
@@ -82,6 +91,7 @@ class OfficialSourceSyncJob:
             ticker=ticker,
             document_count=len(documents),
             market_bar_count=len(bars),
+            news_document_count=len(news_feed),
         )
 
     @staticmethod
@@ -99,6 +109,26 @@ class OfficialSourceSyncJob:
             ticker=ticker,
             title=title,
             text=json.dumps(payload, indent=2, sort_keys=True),
+        )
+
+    @staticmethod
+    def _build_news_document(article: NewsSentimentArticle | Any, ticker: str) -> RawDocument:
+        return RawDocument(
+            source_uri=article.url,
+            source_type="news.alpha_vantage",
+            ticker=ticker,
+            title=article.title,
+            text=json.dumps(
+                {
+                    "title": article.title,
+                    "summary": article.summary,
+                    "source": article.source,
+                    "time_published": article.time_published,
+                    "url": article.url,
+                },
+                indent=2,
+                sort_keys=True,
+            ),
         )
 
 

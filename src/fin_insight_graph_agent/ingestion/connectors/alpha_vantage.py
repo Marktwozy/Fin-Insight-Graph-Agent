@@ -12,6 +12,15 @@ from fin_insight_graph_agent.ingestion.market_loader import DailyBarRecord
 
 
 @dataclass(slots=True)
+class NewsSentimentArticle:
+    title: str
+    url: str
+    time_published: str
+    summary: str
+    source: str
+
+
+@dataclass(slots=True)
 class AlphaVantageClient:
     api_key: str
     base_url: str = "https://www.alphavantage.co/query"
@@ -44,4 +53,30 @@ class AlphaVantageClient:
                 volume=int(row["volume"]),
             )
             for row in reader
+        ]
+
+    def fetch_news_sentiment(
+        self,
+        tickers: list[str],
+        limit: int = 20,
+    ) -> list[NewsSentimentArticle]:
+        payload = self.transport.get_json(
+            self.base_url,
+            params={
+                "function": "NEWS_SENTIMENT",
+                "tickers": ",".join(tickers),
+                "sort": "LATEST",
+                "limit": str(limit),
+                "apikey": self.api_key,
+            },
+        )
+        return [
+            NewsSentimentArticle(
+                title=item["title"],
+                url=item["url"],
+                time_published=item["time_published"],
+                summary=item.get("summary", ""),
+                source=item.get("source", "unknown"),
+            )
+            for item in payload.get("feed", [])
         ]

@@ -13,6 +13,15 @@ class FakeSecClient:
         return {"cik": cik, "facts": {"Revenue": "mock"}}
 
 
+class FakeNewsArticle:
+    def __init__(self, title, url, summary):
+        self.title = title
+        self.url = url
+        self.summary = summary
+        self.source = "Reuters"
+        self.time_published = "20260313T120000"
+
+
 class FakeAlphaVantageClient:
     def fetch_daily_adjusted(self, symbol, outputsize="compact"):
         return [
@@ -24,6 +33,15 @@ class FakeAlphaVantageClient:
                 low_price=Decimal("117.50"),
                 close_price=Decimal("119.50"),
                 volume=1200000,
+            )
+        ]
+
+    def fetch_news_sentiment(self, tickers, limit=20):
+        return [
+            FakeNewsArticle(
+                title="NVIDIA supplier capacity tightens",
+                url="https://example.com/news/nvda-supply",
+                summary="Capacity remains tight across packaging suppliers.",
             )
         ]
 
@@ -53,7 +71,7 @@ class FakeBatchRepository:
         return {"batch_id": batch_id, "status": status}
 
 
-def test_official_source_sync_job_persists_sec_documents_and_market_bars():
+def test_official_source_sync_job_persists_sec_documents_market_bars_and_news():
     document_repository = FakeDocumentRepository()
     market_repository = FakeMarketRepository()
     batch_repository = FakeBatchRepository()
@@ -68,7 +86,8 @@ def test_official_source_sync_job_persists_sec_documents_and_market_bars():
     summary = job.sync_company(cik="1045810", ticker="NVDA", batch_id="batch-20260313")
 
     assert batch_repository.created == [("batch-20260313", "staged")]
-    assert len(document_repository.saved) == 2
+    assert len(document_repository.saved) == 3
     assert market_repository.saved[0][1] == "batch-20260313"
-    assert summary.document_count == 2
+    assert summary.document_count == 3
     assert summary.market_bar_count == 1
+    assert summary.news_document_count == 1

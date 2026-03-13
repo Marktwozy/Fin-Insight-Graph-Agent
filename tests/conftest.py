@@ -9,7 +9,10 @@ from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
+from fin_insight_graph_agent.agent.state import AgentState
+from fin_insight_graph_agent.common.models import EvidenceBundle
 from fin_insight_graph_agent.ingestion.document_normalizer import NormalizedDocument
+from fin_insight_graph_agent.memory.models import ShortTermMemorySnapshot
 
 TEST_DATABASE_URL = os.getenv(
     "FIGA_TEST_DATABASE_URL",
@@ -50,3 +53,39 @@ def sample_document() -> NormalizedDocument:
         batch_id="batch-20260313",
         version=1,
     )
+
+
+@pytest.fixture()
+def sample_agent_state() -> AgentState:
+    snapshot = ShortTermMemorySnapshot(
+        confirmed_facts=["TSMC announced maintenance"],
+        open_hypotheses=["NVIDIA lead times may increase"],
+        entities=["company:tsmc", "company:nvda"],
+        event_timeline=["2026-03-12 maintenance event"],
+        market_snapshot={"ticker": "NVDA"},
+        evidence_pointers=["chunk-1", "chunk-2"],
+        pending_questions=["Which customers depend on this fab?"],
+        confidence_notes=["Secondary impact is not yet confirmed"],
+    )
+    evidence = EvidenceBundle(
+        evidence_id="chunk-1",
+        source_type="filing",
+        content="NVIDIA disclosed supply constraints.",
+        score_raw=0.9,
+        score_reranked=None,
+        entity_refs=["company:nvda"],
+        time_refs=["2026-03-13"],
+        market_refs=["ticker:NVDA"],
+        citation_payload={"doc_id": "doc-1", "chunk_id": "chunk-1"},
+        batch_id="batch-20260313",
+        retrieval_path="qdrant.hybrid",
+    )
+    return {
+        "request_id": "req-sample",
+        "route": "event",
+        "question": "What are the impacts?",
+        "batch_id": "batch-20260313",
+        "evidence": [evidence],
+        "short_term_memory": snapshot,
+        "final_response": None,
+    }

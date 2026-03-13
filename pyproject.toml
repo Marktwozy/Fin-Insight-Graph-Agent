@@ -18,6 +18,7 @@ dependencies = [
   "opentelemetry-api>=1.37.0",
   "opentelemetry-sdk>=1.37.0",
   "prometheus-client>=0.23.1",
+  "ragas>=0.3.0",
 ]
 
 [dependency-groups]

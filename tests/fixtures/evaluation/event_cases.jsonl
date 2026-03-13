@@ -1,0 +1,1 @@
+{"case_id":"event-1","question":"Which firms may be affected by TSMC maintenance?","reference_answer":"Downstream packaging customers may be affected.","response":"Downstream packaging customers may be affected.","contexts":["Maintenance may tighten advanced packaging supply."],"citations":[{"doc_id":"doc-2","chunk_id":"chunk-2"}],"batch_id":"batch-20260313"}

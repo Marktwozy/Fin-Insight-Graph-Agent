@@ -30,6 +30,12 @@ from fin_insight_graph_agent.storage.repositories.market_repository import Marke
 
 
 @dataclass(slots=True)
+class CompanySyncTarget:
+    ticker: str
+    cik: str
+
+
+@dataclass(slots=True)
 class SourceSyncSummary:
     batch_id: str
     ticker: str
@@ -37,6 +43,17 @@ class SourceSyncSummary:
     market_bar_count: int
     news_document_count: int
     indexed_chunk_count: int = 0
+
+
+@dataclass(slots=True)
+class SourceSyncBatchSummary:
+    batch_id: str
+    company_count: int
+    tickers: list[str]
+    document_count: int
+    market_bar_count: int
+    news_document_count: int
+    indexed_chunk_count: int
 
 
 class OfficialSourceSyncJob:
@@ -66,7 +83,36 @@ class OfficialSourceSyncJob:
 
     def sync_company(self, cik: str, ticker: str, batch_id: str) -> SourceSyncSummary:
         self._batch_repository.create_batch(batch_id, 'staged')
+        return self._sync_company_internal(cik=cik, ticker=ticker, batch_id=batch_id)
 
+    def sync_companies(
+        self,
+        targets: list[CompanySyncTarget],
+        batch_id: str,
+    ) -> SourceSyncBatchSummary:
+        if not targets:
+            raise ValueError('At least one sync target is required')
+
+        self._batch_repository.create_batch(batch_id, 'staged')
+        summaries = [
+            self._sync_company_internal(
+                cik=target.cik,
+                ticker=target.ticker,
+                batch_id=batch_id,
+            )
+            for target in targets
+        ]
+        return SourceSyncBatchSummary(
+            batch_id=batch_id,
+            company_count=len(summaries),
+            tickers=[summary.ticker for summary in summaries],
+            document_count=sum(summary.document_count for summary in summaries),
+            market_bar_count=sum(summary.market_bar_count for summary in summaries),
+            news_document_count=sum(summary.news_document_count for summary in summaries),
+            indexed_chunk_count=sum(summary.indexed_chunk_count for summary in summaries),
+        )
+
+    def _sync_company_internal(self, cik: str, ticker: str, batch_id: str) -> SourceSyncSummary:
         submissions = self._sec_client.fetch_submissions(cik)
         company_facts = self._sec_client.fetch_company_facts(cik)
         news_feed = self._alpha_vantage_client.fetch_news_sentiment([ticker], limit=20)

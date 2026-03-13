@@ -14,8 +14,26 @@ Publish one consistent daily batch covering documents, market data, graph projec
 
 ## Worker commands
 - Source sync: `uv run python -m apps.worker.main --job source-sync --ticker NVDA --cik 1045810 --batch-id batch-20260313`
+- Multi-company source sync: `uv run python -m apps.worker.main --job source-sync-batch --targets-file examples/source_sync_targets.example.json --batch-id batch-20260313`
 - Batch publish: `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`
 - Standalone graph gate: `uv run python -m apps.evaluator.main --suite graph_retrieval_smoke --dataset-root tests/fixtures/evaluation --enforce-thresholds`
+
+## Query checks after sync
+- Research sample:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/v1/query `
+  -ContentType 'application/json' `
+  -Body '{"question":"What supply risks does NVIDIA face?","batch_id":"batch-20260313"}'
+```
+
+- Event sample:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/v1/query `
+  -ContentType 'application/json' `
+  -Body '{"event_input":"A packaging bottleneck hits TSMC CoWoS capacity","batch_id":"batch-20260313"}'
+```
 
 ## Failure handling
 - If document ingestion fails, keep the batch in `failed` and do not publish retrieval indexes.

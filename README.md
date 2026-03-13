@@ -31,7 +31,28 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 4. Run the evaluator with `uv run python -m apps.evaluator.main --suite research_smoke --dataset-root tests/fixtures/evaluation`.
 5. Gate graph retrieval quality with `uv run python -m apps.evaluator.main --suite graph_retrieval_smoke --dataset-root tests/fixtures/evaluation --enforce-thresholds`.
 6. Run an official source sync with `uv run python -m apps.worker.main --job source-sync --ticker NVDA --cik 1045810 --batch-id batch-20260313`.
-7. Promote a batch with `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`.
+7. Run a multi-company source sync with `uv run python -m apps.worker.main --job source-sync-batch --targets-file examples/source_sync_targets.example.json --batch-id batch-20260313`.
+8. Promote a batch with `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`.
+
+## Query a research sample locally
+1. Prepare `.env.local` with your embedding and LLM provider settings.
+2. Sync a batch with `source-sync` or `source-sync-batch`.
+3. Start the API with `uv run uvicorn apps.api.main:create_app --factory --reload`.
+4. Call the research route from PowerShell:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/v1/query `
+  -ContentType 'application/json' `
+  -Body '{"question":"What supply risks does NVIDIA face?","batch_id":"batch-20260313"}'
+```
+
+5. Call the event route from PowerShell:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/v1/query `
+  -ContentType 'application/json' `
+  -Body '{"event_input":"A packaging bottleneck hits TSMC CoWoS capacity","batch_id":"batch-20260313"}'
+```
 
 ## Verification
 - `uv run pytest tests/unit tests/integration tests/evaluation -v`

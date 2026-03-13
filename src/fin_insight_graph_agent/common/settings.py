@@ -2,7 +2,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="FIGA_", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="FIGA_",
+        extra="ignore",
+        env_file=(".env", ".env.local"),
+        env_file_encoding="utf-8",
+    )
 
     service_name: str = "fin-insight-graph-agent"
     environment: str = "local"

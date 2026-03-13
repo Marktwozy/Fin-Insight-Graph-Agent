@@ -11,6 +11,10 @@ def test_build_container_wires_runtime_dependencies(monkeypatch):
     graph_retriever = ('graph', neo4j_client)
     market_retriever = ('market', engine)
 
+    def fake_text_retriever(client, collection_name='chunks'):
+        captured['collection_name'] = collection_name
+        return text_retriever
+
     monkeypatch.setattr(
         'fin_insight_graph_agent.common.container.build_qdrant_client',
         lambda *args, **kwargs: qdrant_client,
@@ -37,7 +41,7 @@ def test_build_container_wires_runtime_dependencies(monkeypatch):
     )
     monkeypatch.setattr(
         'fin_insight_graph_agent.common.container.TextRetriever',
-        lambda client: text_retriever,
+        fake_text_retriever,
     )
     monkeypatch.setattr(
         'fin_insight_graph_agent.common.container.GraphRetriever',
@@ -57,8 +61,9 @@ def test_build_container_wires_runtime_dependencies(monkeypatch):
         lambda deps: captured.setdefault('event', deps) or deps,
     )
 
-    build_container(AppSettings())
+    build_container(AppSettings(qdrant_collection_name='chunks_dashscope'))
 
+    assert captured['collection_name'] == 'chunks_dashscope'
     assert captured['research'].response_generator == 'llm'
     assert captured['research'].reranker == 'reranker'
     assert captured['research'].text_retriever == text_retriever

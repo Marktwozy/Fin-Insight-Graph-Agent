@@ -44,7 +44,10 @@ def build_container(settings: AppSettings | None = None) -> ApplicationContainer
         sparse_encoder=SimpleSparseEncoder(),
     )
     dependencies = GraphDependencies(
-        text_retriever=TextRetriever(qdrant_client),
+        text_retriever=TextRetriever(
+            qdrant_client,
+            collection_name=resolved_settings.qdrant_collection_name,
+        ),
         graph_retriever=GraphRetriever(build_neo4j_client()),
         market_retriever=MarketContextRetriever(engine),
         evidence_merger=EvidenceMerger(),

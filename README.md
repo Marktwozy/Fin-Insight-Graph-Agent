@@ -27,6 +27,7 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 - `uv run mypy src`
 
 ## Documentation
+- `docs/reports/v1-technical-brief.md`
 - `docs/guides/v1-implementation-walkthrough.md`
 - `docs/runbooks/local-dev.md`
 - `docs/runbooks/daily-batch-ops.md`

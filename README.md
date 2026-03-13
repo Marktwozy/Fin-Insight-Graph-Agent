@@ -26,7 +26,8 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 - `uv run ruff check .`
 - `uv run mypy src`
 
-## Runbooks
+## Documentation
+- `docs/guides/v1-implementation-walkthrough.md`
 - `docs/runbooks/local-dev.md`
 - `docs/runbooks/daily-batch-ops.md`
 - `docs/adr/0001-postgres-qdrant-neo4j.md`

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter
+from collections import defaultdict
 
 from qdrant_client.http import models
 
@@ -12,11 +12,12 @@ class SimpleSparseEncoder:
         self.buckets = buckets
 
     def encode(self, text: str) -> models.SparseVector:
-        counts = Counter(_tokenize(text))
-        ordered_items = sorted(
-            counts.items(),
-            key=lambda item: hash(item[0]) % self.buckets,
-        )
-        indices = [hash(token) % self.buckets for token, _ in ordered_items]
-        values = [float(count) for _, count in ordered_items]
+        bucket_totals: dict[int, float] = defaultdict(float)
+        for token in _tokenize(text):
+            bucket_index = hash(token) % self.buckets
+            bucket_totals[bucket_index] += 1.0
+
+        ordered_items = sorted(bucket_totals.items(), key=lambda item: item[0])
+        indices = [index for index, _ in ordered_items]
+        values = [value for _, value in ordered_items]
         return models.SparseVector(indices=indices, values=values)

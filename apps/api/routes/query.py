@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import uuid4
-
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
@@ -24,7 +22,7 @@ class QueryResponse(BaseModel):
 @router.post("/query", response_model=QueryResponse)
 def query_endpoint(payload: QueryRequest, request: Request) -> QueryResponse:
     container = request.app.state.container
-    trace_id = uuid4().hex
+    trace_id = getattr(request.state, "trace_id", "")
     if payload.event_input and not payload.question:
         route = "event"
         result = container.event_graph.invoke(

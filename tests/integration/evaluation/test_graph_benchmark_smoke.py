@@ -1,8 +1,6 @@
-import json
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from uuid import uuid4
 
 from fin_insight_graph_agent.evaluation.graph_benchmark import GraphRetrievalBenchmarkRunner
 from fin_insight_graph_agent.graph.graph_retriever import GraphRetriever
@@ -68,32 +66,14 @@ def test_graph_benchmark_runner_scores_real_source_sync_projection(db_engine):
     )
     job.sync_company(cik="1045810", ticker="NVDA", batch_id="batch-20260313")
 
-    dataset_root = Path(__file__).resolve().parents[2] / ".tmp"
-    dataset_root.mkdir(parents=True, exist_ok=True)
-    dataset_path = dataset_root / f"graph_retrieval_cases_{uuid4().hex}.jsonl"
-    dataset_path.write_text(
-        json.dumps(
-            {
-                "case_id": "graph-smoke-1",
-                "batch_id": "batch-20260313",
-                "query_entity_ids": ["company:amd"],
-                "expected_topics": ["export_controls"],
-                "expected_event_prefixes": ["event:export_control"],
-                "expected_related_entities": ["company:nvda", "company:tsmc"],
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
+    dataset_root = Path(__file__).resolve().parents[2] / "fixtures" / "evaluation"
     runner = GraphRetrievalBenchmarkRunner(
         retriever=GraphRetriever(neo4j_client),
         dataset_root=dataset_root,
     )
-    runner.suite_to_file["graph_retrieval_smoke"] = dataset_path.name
     report = runner.run_suite("graph_retrieval_smoke")
 
-    assert report.case_count == 1
+    assert report.case_count == 2
     assert report.metric_value("topic_hit_rate") == 1.0
     assert report.metric_value("event_prefix_hit_rate") == 1.0
     assert report.metric_value("multi_hop_entity_recall") == 1.0

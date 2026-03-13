@@ -14,6 +14,13 @@ GRAPH_SUITE_TO_FILE = {
     "graph_retrieval_smoke": "graph_retrieval_cases.jsonl",
 }
 
+DEFAULT_GRAPH_THRESHOLDS = {
+    "multi_hop_entity_recall": 0.80,
+    "topic_hit_rate": 0.90,
+    "event_prefix_hit_rate": 0.90,
+    "event_explanation_coverage": 1.00,
+}
+
 
 class GraphRetrievalCase(BaseModel):
     case_id: str
@@ -40,6 +47,19 @@ class GraphRetrievalBenchmarkReport:
             if summary.name == name:
                 return summary.value
         raise KeyError(name)
+
+
+@dataclass(slots=True)
+class GraphThresholdViolation:
+    metric_name: str
+    actual: float
+    threshold: float
+
+
+@dataclass(slots=True)
+class GraphBenchmarkGateResult:
+    passed: bool
+    violations: list[GraphThresholdViolation] = field(default_factory=list)
 
 
 class GraphRetrievalBenchmarkRunner:
@@ -81,7 +101,10 @@ class GraphRetrievalBenchmarkRunner:
         retrieved_event_ids = [
             str(result.citation_payload.get("event_id", "")) for result in results
         ]
-        retrieved_related_entities = self._collect_related_entities(results, case.query_entity_ids)
+        retrieved_related_entities = self._collect_related_entities(
+            results,
+            case.query_entity_ids,
+        )
         event_explanation_coverage = self._event_explanation_coverage(results)
         return {
             "multi_hop_entity_recall": self._overlap_rate(
@@ -147,3 +170,22 @@ class GraphRetrievalBenchmarkRunner:
             if any(observed_id.startswith(prefix) for observed_id in observed_ids):
                 matched += 1
         return matched / len(expected_prefixes)
+
+
+def evaluate_thresholds(
+    report: GraphRetrievalBenchmarkReport,
+    thresholds: dict[str, float] | None = None,
+) -> GraphBenchmarkGateResult:
+    resolved_thresholds = thresholds or DEFAULT_GRAPH_THRESHOLDS
+    violations: list[GraphThresholdViolation] = []
+    for metric_name, threshold in resolved_thresholds.items():
+        actual = report.metric_value(metric_name)
+        if actual < threshold:
+            violations.append(
+                GraphThresholdViolation(
+                    metric_name=metric_name,
+                    actual=actual,
+                    threshold=threshold,
+                )
+            )
+    return GraphBenchmarkGateResult(passed=not violations, violations=violations)

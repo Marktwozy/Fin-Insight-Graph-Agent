@@ -19,6 +19,11 @@ from fin_insight_graph_agent.ingestion.connectors.sec_edgar import SecEdgarClien
 from fin_insight_graph_agent.ingestion.document_loader import RawDocument
 from fin_insight_graph_agent.ingestion.document_normalizer import normalize_document
 from fin_insight_graph_agent.ingestion.document_repository import DocumentRepository
+from fin_insight_graph_agent.retrieval.index_chunks import (
+    ChunkIndexRecord,
+    QdrantChunkIndexer,
+    build_chunk_indexer,
+)
 from fin_insight_graph_agent.storage.db import create_db_engine
 from fin_insight_graph_agent.storage.repositories.batch_repository import BatchRepository
 from fin_insight_graph_agent.storage.repositories.market_repository import MarketRepository
@@ -31,6 +36,7 @@ class SourceSyncSummary:
     document_count: int
     market_bar_count: int
     news_document_count: int
+    indexed_chunk_count: int = 0
 
 
 class OfficialSourceSyncJob:
@@ -42,6 +48,8 @@ class OfficialSourceSyncJob:
         market_repository: MarketRepository | Any,
         batch_repository: BatchRepository | Any,
         entity_projector: EntityProjector | Any | None = None,
+        chunk_indexer: QdrantChunkIndexer | Any | None = None,
+        qdrant_collection_name: str = 'chunks',
         chunk_size: int = 900,
         overlap: int = 120,
     ) -> None:
@@ -51,28 +59,30 @@ class OfficialSourceSyncJob:
         self._market_repository = market_repository
         self._batch_repository = batch_repository
         self._entity_projector = entity_projector
+        self._chunk_indexer = chunk_indexer
+        self._qdrant_collection_name = qdrant_collection_name
         self._chunk_size = chunk_size
         self._overlap = overlap
 
     def sync_company(self, cik: str, ticker: str, batch_id: str) -> SourceSyncSummary:
-        self._batch_repository.create_batch(batch_id, "staged")
+        self._batch_repository.create_batch(batch_id, 'staged')
 
         submissions = self._sec_client.fetch_submissions(cik)
         company_facts = self._sec_client.fetch_company_facts(cik)
         news_feed = self._alpha_vantage_client.fetch_news_sentiment([ticker], limit=20)
         documents = [
             self._build_raw_document(
-                source_uri=f"sec://submissions/{cik}",
-                source_type="sec.submissions",
+                source_uri=f'sec://submissions/{cik}',
+                source_type='sec.submissions',
                 ticker=ticker,
-                title=f"{ticker} submissions",
+                title=f'{ticker} submissions',
                 payload=submissions,
             ),
             self._build_raw_document(
-                source_uri=f"sec://companyfacts/{cik}",
-                source_type="sec.companyfacts",
+                source_uri=f'sec://companyfacts/{cik}',
+                source_type='sec.companyfacts',
                 ticker=ticker,
-                title=f"{ticker} company facts",
+                title=f'{ticker} company facts',
                 payload=company_facts,
             ),
             *[
@@ -81,6 +91,7 @@ class OfficialSourceSyncJob:
             ],
         ]
 
+        chunk_index_records: list[ChunkIndexRecord] = []
         for raw_document in documents:
             normalized_document = normalize_document(raw_document, batch_id=batch_id)
             chunks = chunk_document(
@@ -89,6 +100,13 @@ class OfficialSourceSyncJob:
                 overlap=self._overlap,
             )
             self._document_repository.save_document_with_chunks(normalized_document, chunks)
+            chunk_index_records.extend(
+                self._build_chunk_index_records(normalized_document, chunks)
+            )
+
+        if self._chunk_indexer is not None and chunk_index_records:
+            self._chunk_indexer.ensure_collection(self._qdrant_collection_name)
+            self._chunk_indexer.index(self._qdrant_collection_name, chunk_index_records)
 
         if self._entity_projector is not None and news_feed:
             self._entity_projector.project(
@@ -108,7 +126,29 @@ class OfficialSourceSyncJob:
             document_count=len(documents),
             market_bar_count=len(bars),
             news_document_count=len(news_feed),
+            indexed_chunk_count=len(chunk_index_records),
         )
+
+    @staticmethod
+    def _build_chunk_index_records(normalized_document, chunks) -> list[ChunkIndexRecord]:
+        ticker = normalized_document.ticker_tags[0] if normalized_document.ticker_tags else ''
+        entity_refs = [f'company:{tag.lower()}' for tag in normalized_document.ticker_tags]
+        market_refs = [f'ticker:{tag}' for tag in normalized_document.ticker_tags]
+        return [
+            ChunkIndexRecord(
+                chunk_id=chunk.chunk_id,
+                doc_id=normalized_document.document_id,
+                content=chunk.chunk_text,
+                source_type=normalized_document.source_type,
+                ticker=ticker,
+                publish_date=normalized_document.publication_date,
+                batch_id=normalized_document.batch_id,
+                entity_refs=entity_refs,
+                time_refs=[normalized_document.publication_date],
+                market_refs=market_refs,
+            )
+            for chunk in chunks
+        ]
 
     @staticmethod
     def _build_raw_document(
@@ -131,16 +171,16 @@ class OfficialSourceSyncJob:
     def _build_news_document(article: NewsSentimentArticle | Any, ticker: str) -> RawDocument:
         return RawDocument(
             source_uri=article.url,
-            source_type="news.alpha_vantage",
+            source_type='news.alpha_vantage',
             ticker=ticker,
             title=article.title,
             text=json.dumps(
                 {
-                    "title": article.title,
-                    "summary": article.summary,
-                    "source": article.source,
-                    "time_published": article.time_published,
-                    "url": article.url,
+                    'title': article.title,
+                    'summary': article.summary,
+                    'source': article.source,
+                    'time_published': article.time_published,
+                    'url': article.url,
                 },
                 indent=2,
                 sort_keys=True,
@@ -164,4 +204,6 @@ def build_official_source_sync_job(settings: AppSettings | None = None) -> Offic
         market_repository=MarketRepository(engine),
         batch_repository=BatchRepository(engine),
         entity_projector=EntityProjector(build_neo4j_client()),
+        chunk_indexer=build_chunk_indexer(resolved_settings),
+        qdrant_collection_name=resolved_settings.qdrant_collection_name,
     )

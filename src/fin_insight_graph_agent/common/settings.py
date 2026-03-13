@@ -26,3 +26,4 @@ class AppSettings(BaseSettings):
     reranker_api_key: str = ""
     reranker_model: str = "bge-reranker-v2-m3"
     prompt_version: str = "prompt:v1"
+    qdrant_collection_name: str = "chunks"

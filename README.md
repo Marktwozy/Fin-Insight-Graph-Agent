@@ -22,6 +22,7 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 - `FIGA_MODEL_API_BASE_URL` and `FIGA_MODEL_API_KEY` configure OpenAI-compatible embedding and chat endpoints
 - `FIGA_RERANKER_API_URL` configures a remote BGE-style reranker endpoint
 - `FIGA_PROMPT_VERSION` is persisted with evaluation runs
+- `FIGA_QDRANT_COLLECTION_NAME` selects the target collection for source-sync indexing
 
 ## Local development
 1. Start the stack with `docker compose up -d postgres qdrant neo4j prometheus grafana`.

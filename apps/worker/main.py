@@ -31,7 +31,8 @@ def main() -> str:
         return (
             "source sync completed "
             f"for {summary.ticker} in {summary.batch_id}: "
-            f"documents={summary.document_count}, market_bars={summary.market_bar_count}"
+            f"documents={summary.document_count}, market_bars={summary.market_bar_count}, "
+            f"indexed_chunks={summary.indexed_chunk_count}"
         )
     if args.job == "publish-batch":
         publisher = build_quality_gated_batch_publisher()

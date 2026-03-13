@@ -79,11 +79,24 @@ class FakeEntityProjector:
         self.projected.extend(records)
 
 
+class FakeChunkIndexer:
+    def __init__(self):
+        self.ensured = []
+        self.indexed = []
+
+    def ensure_collection(self, collection_name):
+        self.ensured.append(collection_name)
+
+    def index(self, collection_name, records):
+        self.indexed.append((collection_name, records))
+
+
 def test_official_source_sync_job_persists_sec_documents_market_bars_news_and_graph_projection():
     document_repository = FakeDocumentRepository()
     market_repository = FakeMarketRepository()
     batch_repository = FakeBatchRepository()
     entity_projector = FakeEntityProjector()
+    chunk_indexer = FakeChunkIndexer()
     job = OfficialSourceSyncJob(
         sec_client=FakeSecClient(),
         alpha_vantage_client=FakeAlphaVantageClient(),
@@ -91,6 +104,7 @@ def test_official_source_sync_job_persists_sec_documents_market_bars_news_and_gr
         market_repository=market_repository,
         batch_repository=batch_repository,
         entity_projector=entity_projector,
+        chunk_indexer=chunk_indexer,
     )
 
     summary = job.sync_company(cik="1045810", ticker="NVDA", batch_id="batch-20260313")
@@ -101,5 +115,8 @@ def test_official_source_sync_job_persists_sec_documents_market_bars_news_and_gr
     assert summary.document_count == 3
     assert summary.market_bar_count == 1
     assert summary.news_document_count == 1
+    assert summary.indexed_chunk_count > 0
+    assert chunk_indexer.ensured == ["chunks"]
+    assert chunk_indexer.indexed[0][0] == "chunks"
     assert entity_projector.projected[0].entity_id == "company:nvda"
     assert entity_projector.projected[0].related_event_name == "NVIDIA supplier capacity tightens"

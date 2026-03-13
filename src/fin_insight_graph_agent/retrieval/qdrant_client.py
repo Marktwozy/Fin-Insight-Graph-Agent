@@ -20,6 +20,14 @@ class QdrantSearchClient:
     def recreate_collection(self, collection_name: str) -> None:
         if self.client.collection_exists(collection_name):
             self.client.delete_collection(collection_name)
+        self._create_collection(collection_name)
+
+    def ensure_collection(self, collection_name: str) -> None:
+        if self.client.collection_exists(collection_name):
+            return
+        self._create_collection(collection_name)
+
+    def _create_collection(self, collection_name: str) -> None:
         self.client.create_collection(
             collection_name=collection_name,
             vectors_config={

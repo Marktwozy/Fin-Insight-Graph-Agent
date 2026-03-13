@@ -18,9 +18,10 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 ## Model runtime configuration
 - `FIGA_EMBEDDING_PROVIDER=simple|openai_compatible`
 - `FIGA_LLM_PROVIDER=heuristic|openai_compatible`
-- `FIGA_RERANKER_PROVIDER=heuristic|http_bge`
+- `FIGA_RERANKER_PROVIDER=heuristic|http_bge|dashscope`
 - `FIGA_MODEL_API_BASE_URL` and `FIGA_MODEL_API_KEY` configure OpenAI-compatible embedding and chat endpoints
-- `FIGA_RERANKER_API_URL` configures a remote BGE-style reranker endpoint
+- `FIGA_RERANKER_API_URL`, `FIGA_RERANKER_API_KEY`, and `FIGA_RERANKER_MODEL` configure remote reranker endpoints
+- `FIGA_RERANKER_INSTRUCT` optionally sets a custom instruction for `qwen3-rerank` models
 - `FIGA_PROMPT_VERSION` is persisted with evaluation runs
 - `FIGA_QDRANT_COLLECTION_NAME` selects the target collection for source-sync indexing
 
@@ -35,7 +36,7 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 8. Promote a batch with `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`.
 
 ## Query a research sample locally
-1. Prepare `.env.local` with your embedding and LLM provider settings.
+1. Prepare `.env.local` with your embedding, reranker, and LLM provider settings.
 2. Sync a batch with `source-sync` or `source-sync-batch`.
 3. Start the API with `uv run uvicorn apps.api.main:create_app --factory --reload`.
 4. Call the research route from PowerShell:

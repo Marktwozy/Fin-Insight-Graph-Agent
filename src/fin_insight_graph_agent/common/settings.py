@@ -30,5 +30,6 @@ class AppSettings(BaseSettings):
     reranker_api_url: str = "http://127.0.0.1:8001/rerank"
     reranker_api_key: str = ""
     reranker_model: str = "bge-reranker-v2-m3"
+    reranker_instruct: str = ""
     prompt_version: str = "prompt:v1"
     qdrant_collection_name: str = "chunks"

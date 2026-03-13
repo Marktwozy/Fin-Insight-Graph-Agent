@@ -3,7 +3,10 @@ from fin_insight_graph_agent.agent.response_generator import (
     OpenAICompatibleResponseGenerator,
 )
 from fin_insight_graph_agent.retrieval.embeddings import OpenAICompatibleDenseEmbedder
-from fin_insight_graph_agent.retrieval.reranker import HttpBGERerankerClient
+from fin_insight_graph_agent.retrieval.reranker import (
+    DashScopeTextRerankerClient,
+    HttpBGERerankerClient,
+)
 
 
 class FakeTransport:
@@ -50,6 +53,78 @@ def test_http_bge_reranker_client_calls_remote_endpoint_and_returns_scores():
         'NVIDIA demand is rising',
         'Oil prices fell',
     ]
+
+
+def test_http_bge_reranker_client_maps_indexed_results_back_to_input_order():
+    transport = FakeTransport(
+        {
+            'results': [
+                {'index': 1, 'score': 0.93},
+                {'index': 0, 'score': 0.34},
+            ]
+        }
+    )
+    client = HttpBGERerankerClient(
+        base_url='https://reranker.example/v1/rerank',
+        model='bge-reranker-v2-m3',
+        api_key='secret',
+        transport=transport,
+    )
+
+    scores = client.score('GPU demand', ['doc-a', 'doc-b'])
+
+    assert scores == [0.34, 0.93]
+
+
+def test_dashscope_reranker_client_uses_text_rerank_endpoint_for_gte_models():
+    transport = FakeTransport(
+        {
+            'output': {
+                'results': [
+                    {'index': 1, 'relevance_score': 0.88},
+                    {'index': 0, 'relevance_score': 0.21},
+                ]
+            }
+        }
+    )
+    client = DashScopeTextRerankerClient(
+        base_url='https://dashscope.aliyuncs.com',
+        model='gte-rerank-v2',
+        api_key='secret',
+        transport=transport,
+    )
+
+    scores = client.score('GPU demand', ['doc-a', 'doc-b'])
+
+    assert scores == [0.21, 0.88]
+    assert transport.calls[0]['url'].endswith('/api/v1/services/rerank/text-rerank/text-rerank')
+    assert transport.calls[0]['payload']['input']['query'] == 'GPU demand'
+    assert transport.calls[0]['headers']['Authorization'] == 'Bearer secret'
+
+
+def test_dashscope_reranker_client_uses_qwen_compatible_endpoint_when_requested():
+    transport = FakeTransport(
+        {
+            'results': [
+                {'index': 0, 'relevance_score': 0.66},
+                {'index': 1, 'relevance_score': 0.12},
+            ]
+        }
+    )
+    client = DashScopeTextRerankerClient(
+        base_url='https://dashscope.aliyuncs.com',
+        model='qwen3-rerank-8b',
+        api_key='secret',
+        instruct='Rank financial evidence by relevance.',
+        transport=transport,
+    )
+
+    scores = client.score('GPU demand', ['doc-a', 'doc-b'])
+
+    assert scores == [0.66, 0.12]
+    assert transport.calls[0]['url'].endswith('/compatible-api/v1/reranks')
+    assert transport.calls[0]['payload']['instruct'] == 'Rank financial evidence by relevance.'
+    assert transport.calls[0]['payload']['top_n'] == 2
 
 
 def test_openai_compatible_response_generator_calls_chat_completion_endpoint():

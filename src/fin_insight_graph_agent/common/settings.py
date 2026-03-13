@@ -11,3 +11,5 @@ class AppSettings(BaseSettings):
     sec_api_user_agent: str = "FinInsightGraphAgent/1.0 (research@example.com)"
     alpha_vantage_base_url: str = "https://www.alphavantage.co/query"
     alpha_vantage_api_key: str = "demo"
+    evaluation_dataset_root: str = "D:/myAgent/.worktrees/fin-insight-v1/tests/fixtures/evaluation"
+    graph_benchmark_suite: str = "graph_retrieval_smoke"

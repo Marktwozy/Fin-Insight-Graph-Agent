@@ -20,7 +20,9 @@ Engineering foundation for a financial intelligence agent built on LangGraph, Po
 2. Apply schema changes with `uv run alembic upgrade head`.
 3. Start the API with `uv run uvicorn apps.api.main:create_app --factory --reload`.
 4. Run the evaluator with `uv run python -m apps.evaluator.main --suite research_smoke --dataset-root tests/fixtures/evaluation`.
-5. Run an official source sync with `uv run python -m apps.worker.main --job source-sync --ticker NVDA --cik 1045810 --batch-id batch-20260313`.
+5. Gate graph retrieval quality with `uv run python -m apps.evaluator.main --suite graph_retrieval_smoke --dataset-root tests/fixtures/evaluation --enforce-thresholds`.
+6. Run an official source sync with `uv run python -m apps.worker.main --job source-sync --ticker NVDA --cik 1045810 --batch-id batch-20260313`.
+7. Promote a batch with `uv run python -m apps.worker.main --job publish-batch --batch-id batch-20260313`.
 
 ## Verification
 - `uv run pytest tests/unit tests/integration tests/evaluation -v`

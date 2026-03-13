@@ -68,8 +68,12 @@ class GraphRetrievalBenchmarkRunner:
         self._dataset_root = Path(dataset_root)
         self.suite_to_file = dict(GRAPH_SUITE_TO_FILE)
 
-    def run_suite(self, suite_name: str) -> GraphRetrievalBenchmarkReport:
-        cases = self.load_suite(suite_name)
+    def run_suite(
+        self,
+        suite_name: str,
+        batch_id: str | None = None,
+    ) -> GraphRetrievalBenchmarkReport:
+        cases = self.load_suite(suite_name, batch_id=batch_id)
         case_scores = [self._score_case(case) for case in cases]
         return GraphRetrievalBenchmarkReport(
             suite_name=suite_name,
@@ -77,14 +81,21 @@ class GraphRetrievalBenchmarkRunner:
             summaries=aggregate_metric_scores(case_scores),
         )
 
-    def load_suite(self, suite_name: str) -> list[GraphRetrievalCase]:
+    def load_suite(
+        self,
+        suite_name: str,
+        batch_id: str | None = None,
+    ) -> list[GraphRetrievalCase]:
         file_name = self.suite_to_file[suite_name]
         suite_path = self._dataset_root / file_name
         rows: list[GraphRetrievalCase] = []
         for line in suite_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
-            rows.append(GraphRetrievalCase.model_validate(json.loads(line)))
+            case = GraphRetrievalCase.model_validate(json.loads(line))
+            if batch_id is not None:
+                case = case.model_copy(update={"batch_id": batch_id})
+            rows.append(case)
         return rows
 
     def _score_case(self, case: GraphRetrievalCase) -> dict[str, float]:

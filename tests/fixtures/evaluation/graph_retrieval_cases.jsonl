@@ -1,0 +1,1 @@
+{"case_id":"graph-smoke-1","batch_id":"batch-20260313","query_entity_ids":["company:amd"],"expected_topics":["export_controls"],"expected_event_prefixes":["event:export_control"],"expected_related_entities":["company:nvda","company:tsmc"]}

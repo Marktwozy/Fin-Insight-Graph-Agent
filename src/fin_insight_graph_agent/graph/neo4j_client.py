@@ -52,6 +52,8 @@ class Neo4jGraphClient:
                 for row in query_results:
                     topic_name = row.get("topic_name") or "unknown topic"
                     event_name = row["event_name"]
+                    related_entities = list(row.get("related_entity_ids") or [])
+                    entity_refs = [row["entity_id"], *related_entities]
                     content = (
                         f"{row['entity_id']} is linked to "
                         f"{event_name} in {topic_name}."
@@ -61,7 +63,7 @@ class Neo4jGraphClient:
                             "entity_id": row["entity_id"],
                             "content": content,
                             "source_type": "graph",
-                            "entity_refs": [row["entity_id"]],
+                            "entity_refs": entity_refs,
                             "time_refs": [batch_id.removeprefix("batch-")],
                             "market_refs": [f"ticker:{row['ticker']}"]
                             if row.get("ticker")
@@ -71,6 +73,7 @@ class Neo4jGraphClient:
                                 "event_id": row["event_id"],
                                 "event_name": event_name,
                                 "topic": topic_name,
+                                "related_entities": related_entities,
                             },
                             "batch_id": batch_id,
                             "score": 1.0,

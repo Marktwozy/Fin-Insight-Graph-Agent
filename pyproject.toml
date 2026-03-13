@@ -12,6 +12,7 @@ dependencies = [
   "psycopg[binary]>=3.2.9",
   "qdrant-client>=1.15.1",
   "neo4j>=5.28.2",
+  "langgraph>=0.6.7",
 ]
 
 [dependency-groups]

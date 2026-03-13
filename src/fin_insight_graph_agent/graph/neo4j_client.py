@@ -69,6 +69,8 @@ class Neo4jGraphClient:
                             "citation_payload": {
                                 "entity_id": row["entity_id"],
                                 "event_id": row["event_id"],
+                                "event_name": event_name,
+                                "topic": topic_name,
                             },
                             "batch_id": batch_id,
                             "score": 1.0,

@@ -7,16 +7,18 @@ from fin_insight_graph_agent.storage.models.entity import Entity
 from fin_insight_graph_agent.storage.models.evaluation import EvalRun
 from fin_insight_graph_agent.storage.models.market import MarketDailyBar
 from fin_insight_graph_agent.storage.models.memory import MemoryShortSnapshot
+from fin_insight_graph_agent.storage.models.pipeline_smoke import PipelineSmokeRun
 
 __all__ = [
-    "AgentRun",
-    "BatchPublication",
-    "BatchQualityGateRun",
-    "Chunk",
-    "DailyBatchRun",
-    "Document",
-    "Entity",
-    "EvalRun",
-    "MarketDailyBar",
-    "MemoryShortSnapshot",
+    'AgentRun',
+    'BatchPublication',
+    'BatchQualityGateRun',
+    'Chunk',
+    'DailyBatchRun',
+    'Document',
+    'Entity',
+    'EvalRun',
+    'MarketDailyBar',
+    'MemoryShortSnapshot',
+    'PipelineSmokeRun',
 ]

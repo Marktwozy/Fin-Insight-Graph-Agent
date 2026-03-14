@@ -65,6 +65,7 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/v1/query `
 
 ## Batch audit and observability
 - Daily orchestrated runs persist into the `daily_batch_runs` table with terminal status, tickers, validation payload, duration, and error context.
+- Pipeline smoke runs persist into the `pipeline_smoke_runs` table with batch status, research/event smoke payloads, duration, and failure context.
 - Graph publish gates persist into `batch_quality_gate_runs` for batch-level promotion audit.
 - Prometheus exposes `figa_daily_batch_run_total`, `figa_daily_batch_run_seconds`, and `figa_source_sync_retry_total` for scheduler health and retry visibility.
 
